@@ -1,0 +1,8 @@
+schemaId: aerobeat.workout-package.v1
+schemaVersion: 1
+recordVersion: 1
+workoutId: ab-workout-image-demo
+workoutName: Image Demo Workout
+packageVersion: 1.0.0
+setOrder:
+  - ab-set-image-demo-round

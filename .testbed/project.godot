@@ -3,6 +3,7 @@ config_version=5
 [application]
 
 config/name="AeroBeat Tool Testbed"
+run/main_scene="res://scenes/environment_testbed.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 
 [editor_plugins]

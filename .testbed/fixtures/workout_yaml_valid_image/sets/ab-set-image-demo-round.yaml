@@ -1,0 +1,6 @@
+schemaId: aerobeat.set.v1
+schemaVersion: 1
+recordVersion: 1
+setId: ab-set-image-demo-round
+setName: Image Demo Round
+environmentId: ab-environment-image-demo

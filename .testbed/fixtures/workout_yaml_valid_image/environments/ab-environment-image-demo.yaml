@@ -1,0 +1,7 @@
+schemaId: aerobeat.environment.v1
+schemaVersion: 1
+recordVersion: 1
+environmentId: ab-environment-image-demo
+environmentName: Image Demo Environment
+type: image_background
+resourcePath: media/environments/demo.png
