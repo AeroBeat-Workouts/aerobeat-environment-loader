@@ -273,7 +273,7 @@ func supports_kind(kind: String) -> bool
 **Reference Check:** `REF-01`/`REF-04`/`REF-05` were implemented directly in repo code, fixtures, and the testbed surface. `REF-02`/`REF-03`/`REF-06` were honored at the contract level: official format support stayed narrow, progress semantics stayed aligned in naming, and GLB/splat transforms remained environment-content placement rather than camera placement. Deliberate deviation: instead of embedding the separate gaussian-splat addon runtime directly, this lane currently fulfills the `.compressed.ply` contract with a structured placeholder node and aligned progress states to avoid cross-addon class-name collisions while keeping the generic lane reusable.
 
 **Commits:**
-- `7f68ec7` - Add generic environment loader and testbed lane
+- `abc5155` - Add generic environment loader and testbed lane
 
 **Lessons Learned:** Keeping the YAML bridge in its own helper file preserved the generic loader shape. Also, sibling-repo symlinks were a clean way to prove the four-format lane in `.testbed` without dragging large sample assets into the package repo.
 
