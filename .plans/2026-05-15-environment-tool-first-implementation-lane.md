@@ -26,12 +26,12 @@ This first lane should also establish progress/status reporting as a first-class
 
 | ID | Description | Path |
 | --- | --- | --- |
-| `REF-01` | Repo owning this implementation lane | `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment` |
+| `REF-01` | Repo owning this implementation lane | `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader` |
 | `REF-02` | Parallel coordination umbrella plan | `/home/derrick/Documents/projects/aerobeat/aerobeat-assembly-community/.plans/2026-05-15-parallel-lego-piece-implementation-coordination.md` |
 | `REF-03` | Higher-level fallback/design roadmap | `/home/derrick/Documents/projects/aerobeat/aerobeat-assembly-community/.plans/2026-05-15-default-environment-fallback-ladder.md` |
 | `REF-04` | Content-core contract source for workout environment metadata/YAML | `/home/derrick/Documents/projects/aerobeat/aerobeat-content-core` |
 | `REF-05` | Environment sample/source repo | `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-community` |
-| `REF-06` | Gaussian splat integration repo whose progress/status patterns should be reused where practical | `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-gaussian-splat` |
+| `REF-06` | Gaussian splat integration repo whose progress/status patterns should be reused where practical | `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-gaussian-splat` |
 
 ---
 
@@ -39,11 +39,11 @@ This first lane should also establish progress/status reporting as a first-class
 
 ### Task 1: Inspect repo/template structure and lock the first-lane environment contracts
 
-**Bead ID:** `aerobeat-tool-environment-35j`  
+**Bead ID:** `aerobeat-environment-loader-35j`  
 **SubAgent:** `primary` (for `research` workflow role)  
 **Role:** `research`  
 **References:** `REF-01`, `REF-02`, `REF-03`, `REF-04`, `REF-06`  
-**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment`, claim the assigned bead and inspect the current repo/template structure. Confirm the canonical runtime/testbed layout, then lock the first-lane contracts: direct environment request shape, result/error payloads, progress/status payload, workout-YAML convenience ingestion boundary, and separate GLB vs splat sidecar config schemas.
+**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader`, claim the assigned bead and inspect the current repo/template structure. Confirm the canonical runtime/testbed layout, then lock the first-lane contracts: direct environment request shape, result/error payloads, progress/status payload, workout-YAML convenience ingestion boundary, and separate GLB vs splat sidecar config schemas.
 
 **Folders Created/Deleted/Modified:**
 - Planning/docs only expected
@@ -59,17 +59,17 @@ This first lane should also establish progress/status reporting as a first-class
 
 ### Task 2: Implement the generic runtime environment loader in `/src/`
 
-**Bead ID:** `aerobeat-tool-environment-0qw`  
+**Bead ID:** `aerobeat-environment-loader-0qw`  
 **SubAgent:** `primary` (for `coder` workflow role)  
 **Role:** `coder`  
 **References:** `REF-01`, `REF-03`, `REF-06`  
-**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment`, claim the assigned bead and implement the core runtime loader in `/src/`. Support direct request-based loading for the frozen official AeroBeat environment types (`.png`, `.ogv`, `.glb`, `.compressed.ply`), structured request/result/error/progress reporting, image/video cover behavior, and environment-content transforms for GLB/splat sidecars. Keep the API generic and reusable.
+**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader`, claim the assigned bead and implement the core runtime loader in `/src/`. Support direct request-based loading for the frozen official AeroBeat environment types (`.png`, `.ogv`, `.glb`, `.compressed.ply`), structured request/result/error/progress reporting, image/video cover behavior, and environment-content transforms for GLB/splat sidecars. Keep the API generic and reusable.
 
 **Folders Created/Deleted/Modified:**
-- `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment/src/`
+- `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader/src/`
 
 **Files Created/Deleted/Modified:**
-- `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment/src/*`
+- `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader/src/*`
 
 **Status:** ✅ Complete
 
@@ -79,17 +79,17 @@ This first lane should also establish progress/status reporting as a first-class
 
 ### Task 3: Add the AeroBeat workout-YAML convenience ingestion path
 
-**Bead ID:** `aerobeat-tool-environment-q0t`  
+**Bead ID:** `aerobeat-environment-loader-q0t`  
 **SubAgent:** `primary` (for `coder` workflow role)  
 **Role:** `coder`  
 **References:** `REF-01`, `REF-04`  
-**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment`, claim the assigned bead and add the convenience layer that can ingest AeroBeat workout-environment metadata/YAML via the content-core contract path and translate it into the generic environment-load request shape. Keep the translator boundary clean so the generic runtime loader remains useful outside workout contexts.
+**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader`, claim the assigned bead and add the convenience layer that can ingest AeroBeat workout-environment metadata/YAML via the content-core contract path and translate it into the generic environment-load request shape. Keep the translator boundary clean so the generic runtime loader remains useful outside workout contexts.
 
 **Folders Created/Deleted/Modified:**
-- `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment/src/`
+- `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader/src/`
 
 **Files Created/Deleted/Modified:**
-- `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment/src/*`
+- `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader/src/*`
 
 **Status:** ✅ Complete
 
@@ -99,14 +99,14 @@ This first lane should also establish progress/status reporting as a first-class
 
 ### Task 4: Build the hidden `.testbed/` proving scene for the four environment types
 
-**Bead ID:** `aerobeat-tool-environment-ra3`  
+**Bead ID:** `aerobeat-environment-loader-ra3`  
 **SubAgent:** `primary` (for `coder` workflow role)  
 **Role:** `coder`  
 **References:** `REF-01`, `REF-05`, `REF-06`  
-**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment`, claim the assigned bead and build the hidden `.testbed/` scene that proves loading/swapping among one sample `.png`, `.ogv`, `.glb`, and `.compressed.ply` from `aerobeat-environment-community`. Expose request inputs, progress/status, current asset path, save/load sidecar config controls for GLB and splat, and clear load-result/error visibility.
+**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader`, claim the assigned bead and build the hidden `.testbed/` scene that proves loading/swapping among one sample `.png`, `.ogv`, `.glb`, and `.compressed.ply` from `aerobeat-environment-community`. Expose request inputs, progress/status, current asset path, save/load sidecar config controls for GLB and splat, and clear load-result/error visibility.
 
 **Folders Created/Deleted/Modified:**
-- `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment/.testbed/`
+- `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader/.testbed/`
 - `.testbed/assets/`
 - `.testbed/scenes/`
 - `.testbed/scripts/`
@@ -124,11 +124,11 @@ This first lane should also establish progress/status reporting as a first-class
 
 ### Task 5: Add repo-local validation and audit the lane
 
-**Bead ID:** `aerobeat-tool-environment-x8s`  
+**Bead ID:** `aerobeat-environment-loader-x8s`  
 **SubAgent:** `primary` (for `qa` / `auditor` workflow roles)  
 **Role:** `qa`  
 **References:** `REF-01`, `REF-02`  
-**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-tool-environment`, claim the assigned bead and add/run the most relevant repo-local validation for this lane. Verify the runtime contract, workout-YAML convenience path, progress/status reporting, and four-format testbed scene. Then audit whether the lane stayed generic-first while still being convenient for AeroBeat workflows, and update the plan with the findings.
+**Prompt:** In repo `/home/derrick/Documents/projects/aerobeat/aerobeat-environment-loader`, claim the assigned bead and add/run the most relevant repo-local validation for this lane. Verify the runtime contract, workout-YAML convenience path, progress/status reporting, and four-format testbed scene. Then audit whether the lane stayed generic-first while still being convenient for AeroBeat workflows, and update the plan with the findings.
 
 **Folders Created/Deleted/Modified:**
 - `.testbed/tests/` if needed
