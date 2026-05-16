@@ -8,30 +8,31 @@ signal environment_cleared()
 
 const VERSION: String = "0.1.0"
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironmentBridge.gd")
+const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
+const AERO_ENVIRONMENT_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
+const AERO_ENVIRONMENT_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
+const AERO_ENVIRONMENT_PROGRESS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_progress.gd")
+const AERO_ENVIRONMENT_REQUEST_VALIDATOR = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_request_validator.gd")
+const AERO_ENVIRONMENT_CONFIG_HELPER = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_config_helper.gd")
 
-const KIND_IMAGE := "image"
-const KIND_VIDEO := "video"
-const KIND_GLB := "glb"
-const KIND_SPLAT := "splat"
-const DISPLAY_MODE_COVER := "cover"
-const DISPLAY_MODE_CONTAIN := "contain"
-const ERROR_FILE_MISSING := "file_missing"
-const ERROR_UNSUPPORTED_FORMAT := "unsupported_format"
-const ERROR_INVALID_REQUEST := "invalid_request"
-const ERROR_INVALID_CONFIG := "invalid_config"
-const ERROR_LOADER_FAILED := "loader_failed"
-const STATUS_RESOLVING := "resolving"
-const STATUS_LOADING := "loading"
-const STATUS_DECODING := "decoding"
-const STATUS_INSTANTIATING := "instantiating"
-const STATUS_APPLYING_CONFIG := "applying_config"
-const STATUS_READY := "ready"
-const OFFICIAL_FORMATS := {
-	KIND_IMAGE: ".png",
-	KIND_VIDEO: ".ogv",
-	KIND_GLB: ".glb",
-	KIND_SPLAT: ".compressed.ply",
-}
+const KIND_IMAGE := AERO_ENVIRONMENT_CONSTANTS.KIND_IMAGE
+const KIND_VIDEO := AERO_ENVIRONMENT_CONSTANTS.KIND_VIDEO
+const KIND_GLB := AERO_ENVIRONMENT_CONSTANTS.KIND_GLB
+const KIND_SPLAT := AERO_ENVIRONMENT_CONSTANTS.KIND_SPLAT
+const DISPLAY_MODE_COVER := AERO_ENVIRONMENT_CONSTANTS.DISPLAY_MODE_COVER
+const DISPLAY_MODE_CONTAIN := AERO_ENVIRONMENT_CONSTANTS.DISPLAY_MODE_CONTAIN
+const ERROR_FILE_MISSING := AERO_ENVIRONMENT_CONSTANTS.ERROR_FILE_MISSING
+const ERROR_UNSUPPORTED_FORMAT := AERO_ENVIRONMENT_CONSTANTS.ERROR_UNSUPPORTED_FORMAT
+const ERROR_INVALID_REQUEST := AERO_ENVIRONMENT_CONSTANTS.ERROR_INVALID_REQUEST
+const ERROR_INVALID_CONFIG := AERO_ENVIRONMENT_CONSTANTS.ERROR_INVALID_CONFIG
+const ERROR_LOADER_FAILED := AERO_ENVIRONMENT_CONSTANTS.ERROR_LOADER_FAILED
+const STATUS_RESOLVING := AERO_ENVIRONMENT_CONSTANTS.STATUS_RESOLVING
+const STATUS_LOADING := AERO_ENVIRONMENT_CONSTANTS.STATUS_LOADING
+const STATUS_DECODING := AERO_ENVIRONMENT_CONSTANTS.STATUS_DECODING
+const STATUS_INSTANTIATING := AERO_ENVIRONMENT_CONSTANTS.STATUS_INSTANTIATING
+const STATUS_APPLYING_CONFIG := AERO_ENVIRONMENT_CONSTANTS.STATUS_APPLYING_CONFIG
+const STATUS_READY := AERO_ENVIRONMENT_CONSTANTS.STATUS_READY
+const OFFICIAL_FORMATS := AERO_ENVIRONMENT_CONSTANTS.OFFICIAL_FORMATS
 const TEXTURE_RECT_STRETCH_COVER := 6
 const TEXTURE_RECT_STRETCH_CONTAIN := 5
 
@@ -57,7 +58,7 @@ func load_environment(request: Dictionary) -> void:
 		return
 	var normalized_result := _normalize_request(request)
 	if not normalized_result.get("ok", false):
-		var failed_request: Dictionary = normalized_result.get("request", _request_stub(request))
+		var failed_request := _dictionary_from_request_variant(normalized_result.get("request_dict", normalized_result.get("request", _request_stub(request))))
 		_emit_failure(
 			failed_request,
 			String(normalized_result.get("error_code", ERROR_INVALID_REQUEST)),
@@ -65,7 +66,7 @@ func load_environment(request: Dictionary) -> void:
 			bool(normalized_result.get("recoverable", true))
 		)
 		return
-	var normalized_request: Dictionary = normalized_result.get("request", {})
+	var normalized_request: Dictionary = _dictionary_from_request_variant(normalized_result.get("request_dict", normalized_result.get("request", {})))
 	_active_request = normalized_request.duplicate(true)
 	environment_load_started.emit(_active_request.duplicate(true))
 	_emit_progress(_active_request, STATUS_RESOLVING, 0.0, "Resolving environment request...")
@@ -101,7 +102,7 @@ func get_current_environment() -> Dictionary:
 	return _current_environment.duplicate(true)
 
 func supports_kind(kind: String) -> bool:
-	return OFFICIAL_FORMATS.has(kind.strip_edges().to_lower())
+	return AERO_ENVIRONMENT_CONSTANTS.supports_kind(kind)
 
 func _perform_load(request: Dictionary) -> void:
 	_clear_current_environment(false)
@@ -272,66 +273,44 @@ func _clear_current_environment(emit_signal: bool) -> void:
 		environment_cleared.emit()
 
 func _normalize_request(request: Dictionary) -> Dictionary:
-	var kind := String(request.get("kind", "")).strip_edges().to_lower()
-	var asset_path := String(request.get("asset_path", "")).strip_edges()
-	var normalized_request := {
-		"request_id": String(request.get("request_id", "")).strip_edges(),
-		"kind": kind,
-		"asset_path": asset_path,
-		"config_path": String(request.get("config_path", "")).strip_edges(),
-		"display_mode": _normalize_display_mode(String(request.get("display_mode", DISPLAY_MODE_COVER)).strip_edges()),
-		"context": request.get("context", {}),
-		"metadata": Dictionary(request.get("metadata", {})) if request.get("metadata", {}) is Dictionary else {},
-	}
-	if kind.is_empty():
-		return _invalid_request(normalized_request, "Environment request is missing kind.")
-	if not supports_kind(kind):
+	var result: Dictionary = AERO_ENVIRONMENT_REQUEST_VALIDATOR.normalize_request_dict(request)
+	var request_dict := _dictionary_from_request_variant(result.get("request_dict", result.get("request", {})))
+	if result.get("ok", false):
 		return {
-			"ok": false,
-			"request": normalized_request,
-			"error_code": ERROR_UNSUPPORTED_FORMAT,
-			"message": "Environment kind '%s' is not supported." % kind,
-			"recoverable": true,
+			"ok": true,
+			"request": request_dict,
+			"request_dict": request_dict,
+			"request_model": result.get("request", null),
 		}
-	if asset_path.is_empty():
-		return _invalid_request(normalized_request, "Environment request is missing asset_path.")
-	var format := _detect_format(asset_path)
-	if format != String(OFFICIAL_FORMATS.get(kind, "")):
-		return {
-			"ok": false,
-			"request": normalized_request,
-			"error_code": ERROR_UNSUPPORTED_FORMAT,
-			"message": "Environment kind '%s' requires %s assets, got %s." % [kind, OFFICIAL_FORMATS.get(kind, ""), format],
-			"recoverable": true,
-		}
-	if normalized_request["config_path"].is_empty() and (kind == KIND_GLB or kind == KIND_SPLAT):
-		var preferred_config_path := _preferred_config_path(asset_path)
-		if FileAccess.file_exists(_to_absolute_path(preferred_config_path)):
-			normalized_request["config_path"] = preferred_config_path
 	return {
-		"ok": true,
-		"request": normalized_request,
+		"ok": false,
+		"request": request_dict,
+		"request_dict": request_dict,
+		"request_model": result.get("request", null),
+		"error": result.get("error", null),
+		"error_dict": result.get("error_dict", {}),
+		"error_code": result.get("error_code", ERROR_INVALID_REQUEST),
+		"message": result.get("message", "Invalid environment request."),
+		"recoverable": result.get("recoverable", true),
 	}
 
 func _invalid_request(request: Dictionary, message: String) -> Dictionary:
+	var normalized_result := AERO_ENVIRONMENT_REQUEST_VALIDATOR.normalize_request_dict(request, false)
+	var request_dict := _dictionary_from_request_variant(normalized_result.get("request_dict", normalized_result.get("request", request)))
 	return {
 		"ok": false,
-		"request": request,
+		"request": request_dict,
+		"request_dict": request_dict,
 		"error_code": ERROR_INVALID_REQUEST,
 		"message": message,
 		"recoverable": true,
 	}
 
 func _normalize_display_mode(display_mode: String) -> String:
-	return DISPLAY_MODE_CONTAIN if display_mode.to_lower() == DISPLAY_MODE_CONTAIN else DISPLAY_MODE_COVER
+	return AERO_ENVIRONMENT_CONSTANTS.normalize_display_mode(display_mode)
 
 func _preferred_config_path(asset_path: String) -> String:
-	var normalized := asset_path.strip_edges()
-	if normalized.to_lower().ends_with(OFFICIAL_FORMATS[KIND_SPLAT]):
-		return normalized.substr(0, normalized.length() - OFFICIAL_FORMATS[KIND_SPLAT].length()) + ".json"
-	if normalized.to_lower().ends_with(OFFICIAL_FORMATS[KIND_GLB]):
-		return normalized.substr(0, normalized.length() - OFFICIAL_FORMATS[KIND_GLB].length()) + ".json"
-	return normalized + ".json"
+	return AERO_ENVIRONMENT_CONSTANTS.preferred_config_path(asset_path)
 
 func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
 	var config_path := String(request.get("config_path", "")).strip_edges()
@@ -358,7 +337,7 @@ func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
 			"message": "Environment config is not a JSON object: %s" % config_path,
 		}
 	var config: Dictionary = parsed
-	var apply_result: Dictionary = _apply_environment_transform(config, target)
+	var apply_result: Dictionary = AERO_ENVIRONMENT_CONFIG_HELPER.apply_config_dict(config, target)
 	if not apply_result.get("ok", false):
 		return apply_result
 	return {
@@ -369,38 +348,15 @@ func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
 	}
 
 func _apply_environment_transform(config: Dictionary, target: Node) -> Dictionary:
-	if not (target is Node3D):
-		return {
-			"ok": false,
-			"message": "Environment config can only be applied to Node3D content.",
-		}
-	var node_3d := target as Node3D
-	node_3d.position = _variant_to_vector3(config.get("position", Vector3.ZERO), Vector3.ZERO)
-	node_3d.rotation_degrees = _variant_to_vector3(config.get("rotation_degrees", Vector3.ZERO), Vector3.ZERO)
-	node_3d.scale = _variant_to_vector3(config.get("scale", Vector3.ONE), Vector3.ONE)
-	return {"ok": true}
+	return AERO_ENVIRONMENT_CONFIG_HELPER.apply_config_dict(config, target)
 
 func _variant_to_vector3(value: Variant, default_value: Vector3) -> Vector3:
-	if value is Vector3:
-		return value
-	if value is Array:
-		var array_value: Array = value
-		if array_value.size() >= 3:
-			return Vector3(float(array_value[0]), float(array_value[1]), float(array_value[2]))
-	if value is Dictionary:
-		var dict_value: Dictionary = value
-		return Vector3(
-			float(dict_value.get("x", default_value.x)),
-			float(dict_value.get("y", default_value.y)),
-			float(dict_value.get("z", default_value.z))
-		)
-	return default_value
+	return AERO_ENVIRONMENT_CONFIG_HELPER.variant_to_vector3(value, default_value)
 
 func _finalize_success(request: Dictionary, node: Node, extra: Dictionary = {}) -> void:
 	_current_display_node = node
 	_emit_progress(request, STATUS_READY, 1.0, "Environment ready.")
-	var result := {
-		"ok": true,
+	var typed_result = AERO_ENVIRONMENT_RESULT_SCRIPT.new({
 		"request_id": String(request.get("request_id", "")),
 		"kind": String(request.get("kind", "")),
 		"asset_path": String(request.get("asset_path", "")),
@@ -408,7 +364,9 @@ func _finalize_success(request: Dictionary, node: Node, extra: Dictionary = {}) 
 		"format": String(extra.get("format", _detect_format(String(request.get("asset_path", ""))))),
 		"config_applied": bool(extra.get("config_applied", false)),
 		"metadata": Dictionary(request.get("metadata", {})).duplicate(true),
-	}
+		"details": extra.duplicate(true),
+	})
+	var result: Dictionary = typed_result.to_dict()
 	for key in extra.keys():
 		result[key] = extra[key]
 	_current_environment = result.duplicate(true)
@@ -416,27 +374,30 @@ func _finalize_success(request: Dictionary, node: Node, extra: Dictionary = {}) 
 	environment_load_succeeded.emit(result)
 
 func _emit_failure(request: Dictionary, error_code: String, message: String, recoverable: bool) -> void:
-	var error := {
-		"ok": false,
+	var typed_error = AERO_ENVIRONMENT_ERROR_SCRIPT.new({
 		"request_id": String(request.get("request_id", "")),
 		"kind": String(request.get("kind", "")),
 		"asset_path": String(request.get("asset_path", "")),
 		"error_code": error_code,
 		"message": message,
 		"recoverable": recoverable,
-	}
+		"metadata": Dictionary(request.get("metadata", {})).duplicate(true),
+	})
+	var error: Dictionary = typed_error.to_dict()
 	_active_request = {}
 	environment_load_failed.emit(error)
 
 func _emit_progress(request: Dictionary, status: String, progress: float, message: String) -> void:
-	var payload := {
+	var typed_progress = AERO_ENVIRONMENT_PROGRESS_SCRIPT.new({
 		"request_id": String(request.get("request_id", "")),
 		"kind": String(request.get("kind", "")),
 		"asset_path": String(request.get("asset_path", "")),
 		"status": status,
-		"progress": clampf(progress, 0.0, 1.0),
+		"progress": progress,
 		"message": message,
-	}
+		"metadata": Dictionary(request.get("metadata", {})).duplicate(true),
+	})
+	var payload: Dictionary = typed_progress.to_dict()
 	environment_load_progress.emit(payload)
 
 func _request_stub(request: Dictionary) -> Dictionary:
@@ -444,33 +405,26 @@ func _request_stub(request: Dictionary) -> Dictionary:
 		"request_id": String(request.get("request_id", "")).strip_edges(),
 		"kind": String(request.get("kind", "")).strip_edges().to_lower(),
 		"asset_path": String(request.get("asset_path", "")).strip_edges(),
+		"config_path": String(request.get("config_path", "")).strip_edges(),
+		"display_mode": _normalize_display_mode(String(request.get("display_mode", DISPLAY_MODE_COVER)).strip_edges()),
+		"context": request.get("context", {}) if request.get("context", {}) is Dictionary else {},
+		"metadata": Dictionary(request.get("metadata", {})) if request.get("metadata", {}) is Dictionary else {},
 	}
 
 func _detect_format(asset_path: String) -> String:
-	var lower := asset_path.strip_edges().to_lower()
-	for format in OFFICIAL_FORMATS.values():
-		if lower.ends_with(String(format)):
-			return String(format)
-	var extension := lower.get_extension()
-	return ".%s" % extension if not extension.is_empty() else ""
+	return AERO_ENVIRONMENT_CONSTANTS.detect_format(asset_path)
 
 func _to_absolute_path(path: String) -> String:
-	var normalized := path.strip_edges()
-	if normalized.is_empty():
-		return ""
-	if normalized.begins_with("res://") or normalized.begins_with("user://"):
-		return ProjectSettings.globalize_path(normalized)
-	return normalized.simplify_path() if normalized.is_absolute_path() else ProjectSettings.globalize_path(normalized)
+	return AERO_ENVIRONMENT_REQUEST_VALIDATOR.to_absolute_path(path)
 
 func _to_resource_path(path: String) -> String:
-	var normalized := path.strip_edges()
-	if normalized.is_empty():
-		return ""
-	if normalized.begins_with("res://") or normalized.begins_with("user://"):
-		return normalized
-	if not normalized.is_absolute_path():
-		return ProjectSettings.localize_path(ProjectSettings.globalize_path(normalized))
-	var project_root := ProjectSettings.globalize_path("res://")
-	if normalized.begins_with(project_root):
-		return ProjectSettings.localize_path(normalized)
-	return ""
+	return AERO_ENVIRONMENT_REQUEST_VALIDATOR.to_resource_path(path)
+
+func _dictionary_from_request_variant(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return Dictionary(value).duplicate(true)
+	if value != null and value.has_method("to_dict"):
+		var dict_value: Variant = value.to_dict()
+		if dict_value is Dictionary:
+			return Dictionary(dict_value).duplicate(true)
+	return {}

@@ -2,6 +2,12 @@ extends GutTest
 
 const AERO_TOOL_MANAGER_SCRIPT = preload("res://../src/AeroToolManager.gd")
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("res://../src/AeroWorkoutYamlEnvironmentBridge.gd")
+const CORE_CONSTANTS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
+const CORE_REQUEST_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_request.gd")
+const CORE_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
+const CORE_PROGRESS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_progress.gd")
+const CORE_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
+const CORE_REQUEST_VALIDATOR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_request_validator.gd")
 
 func _make_manager() -> Dictionary:
 	var root := Node.new()
@@ -22,6 +28,15 @@ func _make_manager() -> Dictionary:
 		"world_root": world_root,
 		"manager": manager,
 	}
+
+func test_loader_constants_match_environment_core_contract() -> void:
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_IMAGE, CORE_CONSTANTS_SCRIPT.KIND_IMAGE)
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_VIDEO, CORE_CONSTANTS_SCRIPT.KIND_VIDEO)
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_GLB, CORE_CONSTANTS_SCRIPT.KIND_GLB)
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_SPLAT, CORE_CONSTANTS_SCRIPT.KIND_SPLAT)
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.STATUS_READY, CORE_CONSTANTS_SCRIPT.STATUS_READY)
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.ERROR_INVALID_REQUEST, CORE_CONSTANTS_SCRIPT.ERROR_INVALID_REQUEST)
+	assert_eq(AERO_TOOL_MANAGER_SCRIPT.OFFICIAL_FORMATS, CORE_CONSTANTS_SCRIPT.OFFICIAL_FORMATS)
 
 func test_supports_kind_and_official_formats_are_locked() -> void:
 	var manager = AERO_TOOL_MANAGER_SCRIPT.new()
@@ -45,6 +60,22 @@ func test_normalize_request_rejects_kind_extension_mismatch() -> void:
 	assert_eq(result.get("error_code", ""), manager.ERROR_UNSUPPORTED_FORMAT)
 	manager.free()
 
+func test_normalize_request_matches_environment_core_validator() -> void:
+	var manager = AERO_TOOL_MANAGER_SCRIPT.new()
+	var request := {
+		"request_id": "  glb-sidecar-test  ",
+		"kind": " GLB ",
+		"asset_path": "res://assets/models/alien-planet.glb",
+		"display_mode": "contain",
+		"metadata": {"from_test": true},
+	}
+	var manager_result := manager._normalize_request(request)
+	var core_result: Dictionary = CORE_REQUEST_VALIDATOR_SCRIPT.normalize_request_dict(request)
+	assert_true(manager_result.get("ok", false))
+	assert_true(core_result.get("ok", false))
+	assert_eq(manager_result.get("request_dict", {}), core_result.get("request_dict", {}))
+	manager.free()
+
 func test_workout_yaml_bridge_translates_to_generic_request_shape() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
 	var result := bridge.build_request_from_workout_yaml(ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image/workout.yaml"), {
@@ -60,6 +91,9 @@ func test_workout_yaml_bridge_translates_to_generic_request_shape() -> void:
 	assert_eq(request.get("display_mode", ""), "contain")
 	assert_true(Dictionary(request.get("metadata", {})).get("from_test", false))
 	assert_eq(Dictionary(request.get("metadata", {})).get("source", ""), "workout_yaml")
+	var request_model = CORE_REQUEST_SCRIPT.new(request)
+	assert_eq(request_model.kind, "image")
+	assert_eq(request_model.display_mode, "contain")
 
 func test_load_environment_from_workout_yaml_emits_progress_and_success() -> void:
 	var setup := _make_manager()
@@ -86,6 +120,11 @@ func test_load_environment_from_workout_yaml_emits_progress_and_success() -> voi
 		assert_true(value >= 0.0 and value <= 1.0)
 		assert_true(value >= last_progress)
 		last_progress = value
+		var progress_model = CORE_PROGRESS_SCRIPT.new(progress)
+		assert_eq(progress_model.status, String(progress.get("status", "")))
+	var result_model = CORE_RESULT_SCRIPT.new(result)
+	assert_eq(result_model.kind, "image")
+	assert_eq(result_model.format, ".png")
 	var current: Dictionary = manager.get_current_environment()
 	assert_eq(current.get("asset_path", ""), result.get("asset_path", ""))
 	assert_eq(current.get("kind", ""), "image")
@@ -111,6 +150,26 @@ func test_load_environment_applies_glb_sidecar_config() -> void:
 	assert_not_null(node)
 	assert_almost_eq(node.position.y, -1.0, 0.001)
 	assert_almost_eq(node.scale.x, 1.5, 0.001)
+	var result_model = CORE_RESULT_SCRIPT.new(result)
+	assert_eq(result_model.kind, "glb")
+	assert_true(result_model.config_applied)
+	await get_tree().process_frame
+
+func test_failure_payload_round_trips_through_core_error_contract() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "bad-video-load",
+		"kind": "video",
+		"asset_path": "/tmp/outside-project.ogv",
+		"metadata": {"source": "test"},
+	})
+	var error: Dictionary = await manager.environment_load_failed
+	assert_false(error.get("ok", true))
+	assert_eq(error.get("error_code", ""), manager.ERROR_FILE_MISSING)
+	var error_model = CORE_ERROR_SCRIPT.new(error)
+	assert_eq(error_model.request_id, "bad-video-load")
+	assert_eq(error_model.metadata.get("source", ""), "test")
 	await get_tree().process_frame
 
 func test_clear_environment_emits_signal_and_resets_state() -> void:

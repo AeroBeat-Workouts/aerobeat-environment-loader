@@ -1,22 +1,35 @@
-# AeroBeat Tool Template
+# AeroBeat Environment Loader
 
-This is the official template for creating **Tool** repositories within the current AeroBeat v1 architecture.
+`aerobeat-environment-loader` is the shared **environment loader/orchestrator package** for AeroBeat.
 
-It should be read against the locked product direction from `aerobeat-docs`:
+It consumes the contract surface from `aerobeat-environment-core` while keeping the concrete loader-facing
+entrypoint and generic fulfillment behavior that current callers already use.
 
-- **Primary release target:** PC community first
-- **Official v1 gameplay features:** Boxing and Flow
-- **Official v1 gameplay input:** camera only
-- **Tool stance:** tools should stay workflow-oriented and gameplay-mode agnostic enough to support the current product slice without implying equal-status future gameplay/input/platform scope
-- **Tool lane ownership:** shared tool-side DTOs, progress/result models, and workflow interfaces belong in `aerobeat-tool-core`; concrete authoring/import/export/validation tooling belongs in specific `aerobeat-tool-*` repos
+In plain English: `aerobeat-environment-core` owns the reusable request/result/error/progress/config
+contract vocabulary, and this repo stays responsible for turning those requests into mounted scene
+content.
 
-## 📋 Repository Details
+## What this repo owns now
 
-- **Type:** Tool template
+- the public `AeroToolManager.gd` compatibility entrypoint used by current consumers
+- environment orchestration concerns such as mount roots, current-environment replacement, and signal emission
+- built-in generic fulfillment for image, video, and GLB environment assets
+- the lightweight workout/YAML bridge and parser that resolve a package into a generic environment request
+- placeholder splat loading behavior until specialized fulfillment repos take over that path
+
+## What this repo does not own
+
+- the shared environment contract truth for request/result/error/progress/config types
+- the canonical kind/status constants and request normalization helpers
+- specialized fulfillment implementations that belong in sibling environment-family repos
+
+## Repository Details
+
+- **Type:** Environment loader/orchestrator package
 - **License:** **Mozilla Public License 2.0 (MPL 2.0)**
 - **Dependency contract:**
-  - `aerobeat-tool-core` — required shared tool/workflow contract
-  - additional adjacent lane/core repos only when the specific tool actually consumes them (commonly `aerobeat-content-core` or `aerobeat-asset-core`)
+  - `aerobeat-environment-core` — required shared environment contract package
+  - additional adjacent environment-family repos only when this loader intentionally composes them
 
 ## GodotEnv development flow
 
@@ -28,7 +41,9 @@ This repo uses the AeroBeat GodotEnv package convention.
 - Hidden workbench project: `.testbed/project.godot`
 - Repo-local unit tests: `.testbed/tests/`
 
-The repo root remains the package/published boundary for downstream consumers. Day-to-day development, debugging, and validation happen from the hidden `.testbed/` workbench using the pinned OpenClaw toolchain: Godot `4.6.2 stable standard`.
+The repo root remains the package/published boundary for downstream consumers. Day-to-day development,
+debugging, and validation happen from the hidden `.testbed/` workbench using the pinned OpenClaw
+toolchain: Godot `4.6.2 stable standard`.
 
 ### Restore dev/test dependencies
 
@@ -39,7 +54,8 @@ cd .testbed
 godotenv addons install
 ```
 
-That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, Tool templates should keep the baseline manifest narrow: `aerobeat-tool-core` plus test-only tooling.
+That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, the loader
+manifest should stay narrow: `aerobeat-environment-core` plus repo-local test tooling.
 
 ### Open the workbench
 
@@ -48,8 +64,6 @@ From the repo root:
 ```bash
 godot --editor --path .testbed
 ```
-
-Use this `.testbed/` project as the canonical direct-development and bugfinding surface for tool-template work.
 
 ### Import smoke check
 
@@ -70,11 +84,11 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
   -gexit
 ```
 
-### Validation notes
+## Validation notes
 
 - `.testbed/addons.jsonc` is the committed dev/test dependency contract.
-- The canonical template manifest for this repo is `aerobeat-tool-core` + `gut`.
-- `aerobeat-tool-core` is currently pinned to `main` intentionally because the repo does not yet have release tags; switch to a tag once tagged releases exist.
-- If a concrete tool needs adjacent lane repos, add them intentionally rather than restoring a universal `aerobeat-core` baseline.
-- Repo-local unit tests live under `.testbed/tests/` and currently validate repo metadata plus the template stub contract.
-- The current package shape is consumed from the repo root (`subfolder: "/"`) for downstream installs.
+- The canonical manifest for this repo is `aerobeat-environment-core` + `gut`.
+- Repo-local tests validate both the current loader behavior and that the loader stays coherent with
+the core-owned contract subtree.
+- Preserve the compatibility surface first: loader callers can keep using dictionary requests/signals
+  even though the internal contract truth now lives in `aerobeat-environment-core`.

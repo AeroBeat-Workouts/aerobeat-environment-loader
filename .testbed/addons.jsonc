@@ -1,10 +1,10 @@
 {
   "$schema": "https://chickensoft.games/schemas/addons.schema.json",
   "addons": {
-    // Tool-template bootstrap pins the shared tool/workflow contract.
-    // `main` is intentional until aerobeat-tool-core starts tagging releases.
-    "aerobeat-tool-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-core.git",
+    // The loader consumes the shared environment contract package.
+    // `main` is intentional until aerobeat-environment-core starts tagging releases.
+    "aerobeat-environment-core": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-environment-core.git",
       "checkout": "main",
       "subfolder": "/"
     },
