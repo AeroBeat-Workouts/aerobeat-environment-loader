@@ -4,7 +4,7 @@ const README_PATH := "../README.md"
 const PLUGIN_CFG_PATH := "../plugin.cfg"
 const ADDONS_MANIFEST_PATH := "addons.jsonc"
 const EXPECTED_PLUGIN_NAME := "AeroBeat Environment Loader"
-const EXPECTED_PLUGIN_DESCRIPTION := "Environment loader/orchestrator package for AeroBeat. Consumes aerobeat-environment-core contracts while providing built-in image/video/GLB fulfillment and workout YAML bridging."
+const EXPECTED_PLUGIN_DESCRIPTION := "Environment loader/orchestrator package for AeroBeat. Consumes aerobeat-environment-core contracts, composes the shared AeroVideoPlayerManager + Godot video backend stack for video fulfillment, and keeps built-in image/GLB fulfillment plus workout YAML bridging."
 
 func _read_repo_file(relative_path: String) -> String:
 	var absolute_path := ProjectSettings.globalize_path("res://%s" % relative_path)
@@ -18,7 +18,8 @@ func test_readme_describes_environment_loader_boundary() -> void:
 	assert_true(readme_text.contains("shared **environment loader/orchestrator package**"), "README should describe the environment loader role")
 	assert_true(readme_text.contains("aerobeat-environment-core"), "README should point at the shared environment contract package")
 	assert_true(readme_text.contains("public `AeroToolManager.gd` compatibility entrypoint"), "README should preserve the compatibility-entrypoint commitment")
-	assert_true(readme_text.contains("image, video, and GLB"), "README should keep built-in generic fulfillment ownership explicit")
+	assert_true(readme_text.contains("AeroVideoPlayerManager"), "README should document the shared video facade dependency")
+	assert_true(readme_text.contains("built-in image and GLB"), "README should keep built-in image/GLB ownership explicit")
 	assert_true(readme_text.contains("workout/YAML bridge"), "README should keep the workout YAML bridge in the loader lane")
 
 func test_plugin_cfg_description_matches_environment_loader_scope() -> void:
@@ -35,6 +36,8 @@ func test_plugin_cfg_description_matches_environment_loader_scope() -> void:
 func test_addons_manifest_keeps_expected_dependencies_only() -> void:
 	var manifest_text := _read_repo_file(ADDONS_MANIFEST_PATH)
 	assert_true(manifest_text.contains('"aerobeat-environment-core"'), "addons manifest should pin aerobeat-environment-core")
+	assert_true(manifest_text.contains('"aerobeat-tool-core"'), "addons manifest should pin aerobeat-tool-core for the shared video contract")
+	assert_true(manifest_text.contains('"aerobeat-tool-video-player"'), "addons manifest should pin aerobeat-tool-video-player for the shared playback facade")
+	assert_true(manifest_text.contains('"aerobeat-vendor-godot-video"'), "addons manifest should pin aerobeat-vendor-godot-video for the Godot backend")
 	assert_true(manifest_text.contains('"gut"'), "addons manifest should pin gut for repo-local tests")
-	assert_false(manifest_text.contains('"aerobeat-tool-core"'), "addons manifest should not keep the stale tool-core baseline")
 	assert_false(manifest_text.contains('"aerobeat-core"'), "addons manifest should not reintroduce stale aerobeat-core drift")

@@ -155,6 +155,33 @@ func test_load_environment_applies_glb_sidecar_config() -> void:
 	assert_true(result_model.config_applied)
 	await get_tree().process_frame
 
+func test_video_load_uses_shared_video_player_stack() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "video-stack-test",
+		"kind": "video",
+		"asset_path": "res://assets/videos/calm_blue_sea_1.ogv",
+		"display_mode": "cover",
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("kind", ""), "video")
+	assert_eq(result.get("video_manager", ""), "AeroVideoPlayerManager")
+	assert_eq(result.get("playback_backend", ""), "godot_video")
+	assert_eq(result.get("playback_backend_family", ""), "godot_builtin_video")
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 1)
+	var player := (setup["canvas_root"] as Control).get_child(0) as VideoStreamPlayer
+	assert_not_null(player)
+	assert_not_null(player.stream)
+	var playback_state: Dictionary = result.get("playback_state", {})
+	assert_eq(playback_state.get("state", ""), "playing")
+	assert_true(bool(playback_state.get("surface_attached", false)))
+	var media_info: Dictionary = result.get("media_info", {})
+	assert_eq(media_info.get("path", ""), "res://assets/videos/calm_blue_sea_1.ogv")
+	assert_eq(media_info.get("vendor", ""), "godot_video")
+	await get_tree().process_frame
+
 func test_failure_payload_round_trips_through_core_error_contract() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]

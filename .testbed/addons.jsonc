@@ -8,6 +8,22 @@
       "checkout": "main",
       "subfolder": "/"
     },
+    // Video playback now composes the shared video stack instead of owning a direct one-off path.
+    "aerobeat-tool-core": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-core.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
+    "aerobeat-tool-video-player": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-video-player.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
+    "aerobeat-vendor-godot-video": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-video.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
     // GUT drives the repo-local test suite inside the hidden testbed/workbench.
     "gut": {
       "url": "git@github.com:bitwes/Gut.git",

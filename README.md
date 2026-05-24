@@ -13,7 +13,8 @@ content.
 
 - the public `AeroToolManager.gd` compatibility entrypoint used by current consumers
 - environment orchestration concerns such as mount roots, current-environment replacement, and signal emission
-- built-in generic fulfillment for image, video, and GLB environment assets
+- built-in image and GLB fulfillment owned directly in this repo
+- shared video fulfillment composed through `AeroVideoPlayerManager` plus `AeroGodotVideoBackend`
 - the lightweight workout/YAML bridge and parser that resolve a package into a generic environment request
 - placeholder splat loading behavior until specialized fulfillment repos take over that path
 
@@ -22,6 +23,7 @@ content.
 - the shared environment contract truth for request/result/error/progress/config types
 - the canonical kind/status constants and request normalization helpers
 - specialized fulfillment implementations that belong in sibling environment-family repos
+- the shared video playback contract/facade/backend repos, beyond consuming them as dependencies here
 
 ## Repository Details
 
@@ -29,6 +31,9 @@ content.
 - **License:** **Mozilla Public License 2.0 (MPL 2.0)**
 - **Dependency contract:**
   - `aerobeat-environment-core` — required shared environment contract package
+  - `aerobeat-tool-core` — shared video playback vocabulary consumed by the video stack
+  - `aerobeat-tool-video-player` — stable `AeroVideoPlayerManager` playback facade for environment video fulfillment
+  - `aerobeat-vendor-godot-video` — Godot-specific backend/factory paired with the shared video facade
   - additional adjacent environment-family repos only when this loader intentionally composes them
 
 ## GodotEnv development flow
@@ -50,12 +55,12 @@ toolchain: Godot `4.6.2 stable standard`.
 From the repo root:
 
 ```bash
-cd .testbed
-godotenv addons install
+/workspace/scripts/godotenv-sync --repo /workspace/projects/aerobeat/aerobeat-environment-loader
 ```
 
 That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, the loader
-manifest should stay narrow: `aerobeat-environment-core` plus repo-local test tooling.
+manifest now includes `aerobeat-environment-core` plus the shared video stack (`aerobeat-tool-core`,
+`aerobeat-tool-video-player`, `aerobeat-vendor-godot-video`) and repo-local test tooling.
 
 ### Open the workbench
 
@@ -87,8 +92,10 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
 ## Validation notes
 
 - `.testbed/addons.jsonc` is the committed dev/test dependency contract.
-- The canonical manifest for this repo is `aerobeat-environment-core` + `gut`.
+- The canonical manifest for this repo is `aerobeat-environment-core` + the shared video stack + `gut`.
 - Repo-local tests validate both the current loader behavior and that the loader stays coherent with
-the core-owned contract subtree.
+  the core-owned contract subtree while routing video loads through `AeroVideoPlayerManager` + the
+  Godot vendor backend.
 - Preserve the compatibility surface first: loader callers can keep using dictionary requests/signals
-  even though the internal contract truth now lives in `aerobeat-environment-core`.
+  even though the internal contract truth now lives in `aerobeat-environment-core` and video playback
+  now routes through the shared sibling packages.
