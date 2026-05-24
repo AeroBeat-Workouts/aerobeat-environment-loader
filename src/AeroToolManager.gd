@@ -36,6 +36,11 @@ const STATUS_READY := AERO_ENVIRONMENT_CONSTANTS.STATUS_READY
 const OFFICIAL_FORMATS := AERO_ENVIRONMENT_CONSTANTS.OFFICIAL_FORMATS
 const TEXTURE_RECT_STRETCH_COVER := 6
 const TEXTURE_RECT_STRETCH_CONTAIN := 5
+const VIDEO_FAILURE_SUBSYSTEM := "video"
+const VIDEO_ERROR_STAGE_ATTACH := "attach_surface"
+const VIDEO_ERROR_STAGE_LOAD := "load"
+const VIDEO_ERROR_STAGE_PLAY := "play"
+const VIDEO_ERROR_STAGE_UNLOAD := "unload"
 
 @export var is_active: bool = true
 @export var canvas_root_path: NodePath
@@ -176,8 +181,9 @@ func _load_video(request: Dictionary) -> void:
 	video_manager.attach_surface(player)
 	var attach_error := _get_video_manager_error(video_manager)
 	if not attach_error.is_empty():
+		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_ATTACH, video_manager, "Video output surface could not be attached.", ERROR_LOADER_FAILED, bool(attach_error.get("recoverable", true)))
+		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
 		player.queue_free()
-		_emit_failure(request, ERROR_LOADER_FAILED, String(attach_error.get("message", "Video output surface could not be attached.")), bool(attach_error.get("recoverable", true)))
 		return
 
 	video_manager.load({
@@ -191,17 +197,17 @@ func _load_video(request: Dictionary) -> void:
 	})
 	var load_error := _get_video_manager_error(video_manager)
 	if not load_error.is_empty():
-		video_manager.detach_surface()
+		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_LOAD, video_manager, "Video stream could not be loaded.", ERROR_LOADER_FAILED, bool(load_error.get("recoverable", true)))
+		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
 		player.queue_free()
-		_emit_failure(request, ERROR_LOADER_FAILED, String(load_error.get("message", "Video stream could not be loaded.")), bool(load_error.get("recoverable", true)))
 		return
 
 	video_manager.play()
 	var play_error := _get_video_manager_error(video_manager)
 	if not play_error.is_empty():
-		video_manager.detach_surface()
+		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_PLAY, video_manager, "Video playback could not be started.", ERROR_LOADER_FAILED, bool(play_error.get("recoverable", true)))
+		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
 		player.queue_free()
-		_emit_failure(request, ERROR_LOADER_FAILED, String(play_error.get("message", "Video playback could not be started.")), bool(play_error.get("recoverable", true)))
 		return
 
 	var video_state: Dictionary = video_manager.get_state()
@@ -321,13 +327,23 @@ func _ensure_video_player_manager() -> Node:
 	return _video_player_manager
 
 func _teardown_video_player_manager() -> void:
-	if _video_player_manager == null or not is_instance_valid(_video_player_manager):
+	_unload_video_player_manager(_video_player_manager)
+
+func _unload_video_player_manager(video_manager: Node, request: Dictionary = {}, stage: String = VIDEO_ERROR_STAGE_UNLOAD, resource_path: String = "") -> void:
+	if video_manager == null or not is_instance_valid(video_manager):
 		return
-	var state: Dictionary = _video_player_manager.get_state() if _video_player_manager.has_method("get_state") else {}
+	if video_manager.has_method("unload"):
+		video_manager.unload()
+		return
+	var unload_error := _get_video_manager_error(video_manager)
+	var state: Dictionary = _get_video_manager_state(video_manager)
 	if bool(state.get("surface_attached", false)):
-		if bool(state.get("media_loaded", not Dictionary(state.get("source", {})).is_empty())):
-			_video_player_manager.stop()
-		_video_player_manager.detach_surface()
+		if bool(state.get("media_loaded", not Dictionary(state.get("source", {})).is_empty())) and video_manager.has_method("stop"):
+			video_manager.stop()
+		if video_manager.has_method("detach_surface"):
+			video_manager.detach_surface()
+	if not request.is_empty() and unload_error.is_empty() and not _get_video_manager_error(video_manager).is_empty():
+		_emit_video_failure(request, resource_path, stage, video_manager, "Video teardown could not be completed.", ERROR_LOADER_FAILED, true)
 
 func _get_video_manager_error(video_manager: Node) -> Dictionary:
 	if video_manager == null or not is_instance_valid(video_manager) or not video_manager.has_method("get_last_error"):
@@ -336,6 +352,78 @@ func _get_video_manager_error(video_manager: Node) -> Dictionary:
 	if last_error is Dictionary:
 		return Dictionary(last_error).duplicate(true)
 	return {}
+
+func _get_video_manager_state(video_manager: Node) -> Dictionary:
+	if video_manager == null or not is_instance_valid(video_manager) or not video_manager.has_method("get_state"):
+		return {}
+	var state: Variant = video_manager.get_state()
+	if state is Dictionary:
+		return Dictionary(state).duplicate(true)
+	return {}
+
+func _get_video_manager_media_info(video_manager: Node) -> Dictionary:
+	if video_manager == null or not is_instance_valid(video_manager) or not video_manager.has_method("get_media_info"):
+		return {}
+	var media_info: Variant = video_manager.get_media_info()
+	if media_info is Dictionary:
+		return Dictionary(media_info).duplicate(true)
+	return {}
+
+func _get_video_backend_context(video_manager: Node) -> Dictionary:
+	if video_manager == null or not is_instance_valid(video_manager) or not video_manager.has_method("get_backend"):
+		return {}
+	var backend: Variant = video_manager.get_backend()
+	if backend == null or not is_instance_valid(backend):
+		return {}
+	var context := {
+		"script": backend.get_script().resource_path.get_file().trim_suffix(".gd") if backend.get_script() != null else "",
+	}
+	if backend.has_method("get_capabilities"):
+		var capabilities: Variant = backend.get_capabilities()
+		if capabilities is Dictionary:
+			context["vendor"] = String(Dictionary(capabilities).get("vendor", ""))
+			context["backend_family"] = String(Dictionary(capabilities).get("backend_family", ""))
+	return context
+
+func _emit_video_failure(request: Dictionary, resource_path: String, stage: String, video_manager: Node, fallback_message: String, fallback_error_code: String = ERROR_LOADER_FAILED, fallback_recoverable: bool = true) -> void:
+	var video_error := _get_video_manager_error(video_manager)
+	var video_state := _get_video_manager_state(video_manager)
+	var media_info := _get_video_manager_media_info(video_manager)
+	var environment_error_code := _map_video_error_to_environment_code(video_error, resource_path, fallback_error_code)
+	var message := String(video_error.get("message", fallback_message))
+	var recoverable := bool(video_error.get("recoverable", fallback_recoverable))
+	var details := _build_video_failure_details(request, resource_path, stage, video_manager, media_info, video_state, video_error)
+	_emit_failure(request, environment_error_code, message, recoverable, details)
+
+func _map_video_error_to_environment_code(video_error: Dictionary, resource_path: String, fallback_error_code: String) -> String:
+	var code := String(video_error.get("code", "")).strip_edges().to_lower()
+	match code:
+		"backend_stream_load_failed":
+			return ERROR_FILE_MISSING if _detect_format(resource_path) == OFFICIAL_FORMATS[KIND_VIDEO] else ERROR_UNSUPPORTED_FORMAT
+		"backend_source_kind_unsupported":
+			return ERROR_UNSUPPORTED_FORMAT
+		"invalid_source", "backend_source_missing_path", "backend_source_not_local", "backend_invalid_rate":
+			return ERROR_INVALID_REQUEST
+		"invalid_surface", "backend_invalid_surface", "backend_player_unavailable", "backend_not_loaded", "not_ready", "backend_rejected":
+			return ERROR_LOADER_FAILED
+		_:
+			return fallback_error_code
+
+func _build_video_failure_details(request: Dictionary, resource_path: String, stage: String, video_manager: Node, media_info: Dictionary, video_state: Dictionary, video_error: Dictionary) -> Dictionary:
+	var backend_context := _get_video_backend_context(video_manager)
+	var backend := String(media_info.get("vendor", backend_context.get("vendor", video_error.get("vendor", video_state.get("backend", video_state.get("vendor", ""))))))
+	var backend_family := String(media_info.get("backend_family", backend_context.get("backend_family", video_error.get("backend_family", video_state.get("backend_family", "")))))
+	return {
+		"subsystem": VIDEO_FAILURE_SUBSYSTEM,
+		"stage": stage,
+		"resource_path": resource_path,
+		"requested_asset_path": String(request.get("asset_path", "")),
+		"backend": backend,
+		"backend_family": backend_family,
+		"backend_script": String(backend_context.get("script", "")),
+		"state": video_state.duplicate(true),
+		"video_error": video_error.duplicate(true),
+	}
 
 func _normalize_request(request: Dictionary) -> Dictionary:
 	var result: Dictionary = AERO_ENVIRONMENT_REQUEST_VALIDATOR.normalize_request_dict(request)
@@ -438,7 +526,7 @@ func _finalize_success(request: Dictionary, node: Node, extra: Dictionary = {}) 
 	_active_request = {}
 	environment_load_succeeded.emit(result)
 
-func _emit_failure(request: Dictionary, error_code: String, message: String, recoverable: bool) -> void:
+func _emit_failure(request: Dictionary, error_code: String, message: String, recoverable: bool, details: Dictionary = {}) -> void:
 	var typed_error = AERO_ENVIRONMENT_ERROR_SCRIPT.new({
 		"request_id": String(request.get("request_id", "")),
 		"kind": String(request.get("kind", "")),
@@ -447,6 +535,7 @@ func _emit_failure(request: Dictionary, error_code: String, message: String, rec
 		"message": message,
 		"recoverable": recoverable,
 		"metadata": Dictionary(request.get("metadata", {})).duplicate(true),
+		"details": details.duplicate(true),
 	})
 	var error: Dictionary = typed_error.to_dict()
 	_active_request = {}

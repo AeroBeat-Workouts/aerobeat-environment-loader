@@ -182,6 +182,32 @@ func test_video_load_uses_shared_video_player_stack() -> void:
 	assert_eq(media_info.get("vendor", ""), "godot_video")
 	await get_tree().process_frame
 
+func test_video_stack_failures_bridge_into_environment_error_details() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "missing-video-import",
+		"kind": "video",
+		"asset_path": "res://assets/videos/does_not_exist.ogv",
+		"metadata": {"source": "test"},
+	})
+	var error: Dictionary = await manager.environment_load_failed
+	assert_false(error.get("ok", true))
+	assert_eq(error.get("error_code", ""), manager.ERROR_FILE_MISSING)
+	assert_eq(error.get("message", ""), "Godot could not load the requested video stream resource.")
+	var details: Dictionary = error.get("details", {})
+	assert_eq(details.get("subsystem", ""), "video")
+	assert_eq(details.get("stage", ""), "load")
+	assert_eq(details.get("resource_path", ""), "res://assets/videos/does_not_exist.ogv")
+	assert_eq(details.get("backend", ""), "godot_video")
+	assert_eq(Dictionary(details.get("video_error", {})).get("code", ""), "backend_stream_load_failed")
+	assert_eq(Dictionary(details.get("state", {})).get("state", ""), "error")
+	var error_model = CORE_ERROR_SCRIPT.new(error)
+	assert_eq(error_model.request_id, "missing-video-import")
+	assert_eq(error_model.metadata.get("source", ""), "test")
+	assert_eq(error_model.details.get("subsystem", ""), "video")
+	await get_tree().process_frame
+
 func test_failure_payload_round_trips_through_core_error_contract() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]
@@ -197,7 +223,29 @@ func test_failure_payload_round_trips_through_core_error_contract() -> void:
 	var error_model = CORE_ERROR_SCRIPT.new(error)
 	assert_eq(error_model.request_id, "bad-video-load")
 	assert_eq(error_model.metadata.get("source", ""), "test")
+	assert_eq(error_model.details, {})
 	await get_tree().process_frame
+
+func test_clear_environment_unloads_video_manager_state() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "clear-video-test",
+		"kind": "video",
+		"asset_path": "res://assets/videos/calm_blue_sea_1.ogv",
+		"display_mode": "cover",
+	})
+	await manager.environment_load_succeeded
+	var video_manager = manager._video_player_manager
+	assert_not_null(video_manager)
+	manager.clear_environment()
+	await get_tree().process_frame
+	var state: Dictionary = video_manager.get_state()
+	assert_eq(state.get("state", ""), "idle")
+	assert_false(bool(state.get("surface_attached", true)))
+	assert_false(bool(state.get("media_loaded", true)))
+	assert_eq(manager.get_current_environment(), {})
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 0)
 
 func test_clear_environment_emits_signal_and_resets_state() -> void:
 	var setup := _make_manager()
