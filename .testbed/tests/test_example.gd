@@ -4,7 +4,7 @@ const README_PATH := "../README.md"
 const PLUGIN_CFG_PATH := "../plugin.cfg"
 const ADDONS_MANIFEST_PATH := "addons.jsonc"
 const EXPECTED_PLUGIN_NAME := "AeroBeat Environment Loader"
-const EXPECTED_PLUGIN_DESCRIPTION := "Environment loader/orchestrator package for AeroBeat. Consumes aerobeat-environment-core contracts, composes the shared AeroVideoPlayerManager + Godot video backend stack for video fulfillment, and keeps built-in image/GLB fulfillment plus workout YAML bridging."
+const EXPECTED_PLUGIN_DESCRIPTION := "Environment loader/orchestrator package for AeroBeat. Consumes aerobeat-environment-core contracts, fulfills video through the shared AeroVideoPlayerManager abstraction, and keeps built-in image/GLB fulfillment plus workout YAML bridging."
 
 func _read_repo_file(relative_path: String) -> String:
 	var absolute_path := ProjectSettings.globalize_path("res://%s" % relative_path)
@@ -19,6 +19,7 @@ func test_readme_describes_environment_loader_boundary() -> void:
 	assert_true(readme_text.contains("aerobeat-environment-core"), "README should point at the shared environment contract package")
 	assert_true(readme_text.contains("public `AeroToolManager.gd` compatibility entrypoint"), "README should preserve the compatibility-entrypoint commitment")
 	assert_true(readme_text.contains("AeroVideoPlayerManager"), "README should document the shared video facade dependency")
+	assert_true(readme_text.contains("swappable"), "README should describe the backend boundary as swappable")
 	assert_true(readme_text.contains("built-in image and GLB"), "README should keep built-in image/GLB ownership explicit")
 	assert_true(readme_text.contains("workout/YAML bridge"), "README should keep the workout YAML bridge in the loader lane")
 

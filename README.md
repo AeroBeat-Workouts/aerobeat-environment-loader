@@ -14,7 +14,7 @@ content.
 - the public `AeroToolManager.gd` compatibility entrypoint used by current consumers
 - environment orchestration concerns such as mount roots, current-environment replacement, and signal emission
 - built-in image and GLB fulfillment owned directly in this repo
-- shared video fulfillment composed through `AeroVideoPlayerManager` plus `AeroGodotVideoBackend`
+- shared video fulfillment composed through the stable `AeroVideoPlayerManager` abstraction while keeping the active playback backend swappable
 - the lightweight workout/YAML bridge and parser that resolve a package into a generic environment request
 - placeholder splat loading behavior until specialized fulfillment repos take over that path
 
@@ -33,7 +33,7 @@ content.
   - `aerobeat-environment-core` — required shared environment contract package
   - `aerobeat-tool-core` — shared video playback vocabulary consumed by the video stack
   - `aerobeat-tool-video-player` — stable `AeroVideoPlayerManager` playback facade for environment video fulfillment
-  - `aerobeat-vendor-godot-video` — Godot-specific backend/factory paired with the shared video facade
+  - `aerobeat-vendor-godot-video` — current default backend package that satisfies the shared video facade behind this repo
   - additional adjacent environment-family repos only when this loader intentionally composes them
 
 ## GodotEnv development flow
@@ -94,8 +94,8 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
 - `.testbed/addons.jsonc` is the committed dev/test dependency contract.
 - The canonical manifest for this repo is `aerobeat-environment-core` + the shared video stack + `gut`.
 - Repo-local tests validate both the current loader behavior and that the loader stays coherent with
-  the core-owned contract subtree while routing video loads through `AeroVideoPlayerManager` + the
-  Godot vendor backend.
+  the core-owned contract subtree while routing video loads through `AeroVideoPlayerManager` without
+  exposing vendor-specific playback details to loader consumers.
 - Preserve the compatibility surface first: loader callers can keep using dictionary requests/signals
   even though the internal contract truth now lives in `aerobeat-environment-core` and video playback
   now routes through the shared sibling packages.

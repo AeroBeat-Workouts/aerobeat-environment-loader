@@ -8,7 +8,7 @@ signal environment_cleared()
 
 const VERSION: String = "0.2.0"
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironmentBridge.gd")
-const AERO_GODOT_VIDEO_BACKEND_FACTORY_SCRIPT = preload("res://addons/aerobeat-vendor-godot-video/src/AeroGodotVideoBackendFactory.gd")
+const AERO_VIDEO_PLAYER_MANAGER_SCRIPT = preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")
 const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const AERO_ENVIRONMENT_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
 const AERO_ENVIRONMENT_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
@@ -166,24 +166,16 @@ func _load_video(request: Dictionary) -> void:
 		_emit_failure(request, ERROR_FILE_MISSING, "Video environment must live inside the Godot project so it can be imported: %s" % request.get("asset_path", ""), true)
 		return
 	_emit_progress(request, STATUS_INSTANTIATING, 0.55, "Instantiating video environment...")
-	var player := VideoStreamPlayer.new()
-	player.name = "EnvironmentVideo"
-	player.expand = true
-	player.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	player.set_anchors_preset(Control.PRESET_FULL_RECT)
-	player.offset_left = 0.0
-	player.offset_top = 0.0
-	player.offset_right = 0.0
-	player.offset_bottom = 0.0
-	_canvas_root.add_child(player)
+	var surface := _build_video_surface()
+	_canvas_root.add_child(surface)
 
 	var video_manager := _ensure_video_player_manager()
-	video_manager.attach_surface(player)
+	video_manager.attach_surface(surface)
 	var attach_error := _get_video_manager_error(video_manager)
 	if not attach_error.is_empty():
 		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_ATTACH, video_manager, "Video output surface could not be attached.", ERROR_LOADER_FAILED, bool(attach_error.get("recoverable", true)))
 		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
-		player.queue_free()
+		surface.queue_free()
 		return
 
 	video_manager.load({
@@ -199,7 +191,7 @@ func _load_video(request: Dictionary) -> void:
 	if not load_error.is_empty():
 		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_LOAD, video_manager, "Video stream could not be loaded.", ERROR_LOADER_FAILED, bool(load_error.get("recoverable", true)))
 		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
-		player.queue_free()
+		surface.queue_free()
 		return
 
 	video_manager.play()
@@ -207,20 +199,17 @@ func _load_video(request: Dictionary) -> void:
 	if not play_error.is_empty():
 		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_PLAY, video_manager, "Video playback could not be started.", ERROR_LOADER_FAILED, bool(play_error.get("recoverable", true)))
 		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
-		player.queue_free()
+		surface.queue_free()
 		return
 
-	var video_state: Dictionary = video_manager.get_state()
-	var media_info: Dictionary = video_manager.get_media_info()
-	_finalize_success(request, player, {
+	var video_state: Dictionary = _sanitize_video_state(video_manager.get_state())
+	var media_info: Dictionary = _sanitize_video_media_info(video_manager.get_media_info())
+	_finalize_success(request, surface, {
 		"format": OFFICIAL_FORMATS[KIND_VIDEO],
 		"config_path": "",
 		"config_applied": false,
-		"video_manager": "AeroVideoPlayerManager",
-		"playback_backend": String(media_info.get("vendor", video_state.get("backend", ""))),
-		"playback_backend_family": String(media_info.get("backend_family", video_state.get("backend_family", ""))),
-		"playback_state": video_state.duplicate(true),
-		"media_info": media_info.duplicate(true),
+		"playback_state": video_state,
+		"media_info": media_info,
 	})
 
 func _load_glb(request: Dictionary) -> void:
@@ -306,8 +295,6 @@ func _ensure_roots() -> void:
 func _clear_current_environment(emit_signal: bool) -> void:
 	_teardown_video_player_manager()
 	if _current_display_node != null and is_instance_valid(_current_display_node):
-		if _current_display_node is VideoStreamPlayer:
-			(_current_display_node as VideoStreamPlayer).stop()
 		_current_display_node.queue_free()
 	_current_display_node = null
 	_current_environment = {}
@@ -320,8 +307,7 @@ func _ensure_video_player_manager() -> Node:
 		if _video_player_manager.get_parent() == null:
 			add_child(_video_player_manager)
 		return _video_player_manager
-	var factory = AERO_GODOT_VIDEO_BACKEND_FACTORY_SCRIPT.new()
-	_video_player_manager = factory.create_manager()
+	_video_player_manager = _build_video_player_manager()
 	_video_player_manager.name = "EnvironmentVideoPlayerManager"
 	add_child(_video_player_manager)
 	return _video_player_manager
@@ -369,21 +355,73 @@ func _get_video_manager_media_info(video_manager: Node) -> Dictionary:
 		return Dictionary(media_info).duplicate(true)
 	return {}
 
-func _get_video_backend_context(video_manager: Node) -> Dictionary:
-	if video_manager == null or not is_instance_valid(video_manager) or not video_manager.has_method("get_backend"):
-		return {}
-	var backend: Variant = video_manager.get_backend()
-	if backend == null or not is_instance_valid(backend):
-		return {}
-	var context := {
-		"script": backend.get_script().resource_path.get_file().trim_suffix(".gd") if backend.get_script() != null else "",
-	}
-	if backend.has_method("get_capabilities"):
-		var capabilities: Variant = backend.get_capabilities()
-		if capabilities is Dictionary:
-			context["vendor"] = String(Dictionary(capabilities).get("vendor", ""))
-			context["backend_family"] = String(Dictionary(capabilities).get("backend_family", ""))
-	return context
+func _build_video_surface() -> Control:
+	var surface := Control.new()
+	surface.name = "EnvironmentVideoSurface"
+	surface.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	surface.set_anchors_preset(Control.PRESET_FULL_RECT)
+	surface.offset_left = 0.0
+	surface.offset_top = 0.0
+	surface.offset_right = 0.0
+	surface.offset_bottom = 0.0
+	return surface
+
+func _build_video_player_manager() -> Node:
+	var discovered_manager := _discover_video_player_manager()
+	if discovered_manager != null:
+		return discovered_manager
+	return AERO_VIDEO_PLAYER_MANAGER_SCRIPT.new()
+
+func _discover_video_player_manager() -> Node:
+	var global_classes: Array = ProjectSettings.get_global_class_list()
+	for entry_variant in global_classes:
+		if not (entry_variant is Dictionary):
+			continue
+		var entry: Dictionary = entry_variant
+		var global_class_name := String(entry.get("class", ""))
+		var script_path := String(entry.get("path", ""))
+		var lowered_name := global_class_name.to_lower()
+		var lowered_path := script_path.to_lower()
+		if not lowered_name.contains("videobackendfactory") and not lowered_path.contains("videobackendfactory.gd"):
+			continue
+		var factory_script: Variant = load(script_path)
+		if factory_script == null:
+			continue
+		var factory: Variant = factory_script.new()
+		if factory == null or not factory.has_method("create_manager"):
+			continue
+		var manager: Variant = factory.create_manager()
+		if manager != null and _is_video_player_manager_candidate(manager):
+			return manager
+	return null
+
+func _is_video_player_manager_candidate(candidate: Variant) -> bool:
+	return candidate != null \
+		and candidate is Node \
+		and candidate.has_method("attach_surface") \
+		and candidate.has_method("load") \
+		and candidate.has_method("play") \
+		and candidate.has_method("get_state") \
+		and candidate.has_method("get_last_error")
+
+func _sanitize_video_state(video_state: Dictionary) -> Dictionary:
+	var sanitized := video_state.duplicate(true)
+	sanitized.erase("backend")
+	sanitized.erase("backend_family")
+	sanitized.erase("vendor")
+	return sanitized
+
+func _sanitize_video_media_info(media_info: Dictionary) -> Dictionary:
+	var sanitized := media_info.duplicate(true)
+	sanitized.erase("vendor")
+	sanitized.erase("backend_family")
+	return sanitized
+
+func _sanitize_video_error(video_error: Dictionary) -> Dictionary:
+	var sanitized := video_error.duplicate(true)
+	sanitized.erase("vendor")
+	sanitized.erase("backend_family")
+	return sanitized
 
 func _emit_video_failure(request: Dictionary, resource_path: String, stage: String, video_manager: Node, fallback_message: String, fallback_error_code: String = ERROR_LOADER_FAILED, fallback_recoverable: bool = true) -> void:
 	var video_error := _get_video_manager_error(video_manager)
@@ -410,19 +448,14 @@ func _map_video_error_to_environment_code(video_error: Dictionary, resource_path
 			return fallback_error_code
 
 func _build_video_failure_details(request: Dictionary, resource_path: String, stage: String, video_manager: Node, media_info: Dictionary, video_state: Dictionary, video_error: Dictionary) -> Dictionary:
-	var backend_context := _get_video_backend_context(video_manager)
-	var backend := String(media_info.get("vendor", backend_context.get("vendor", video_error.get("vendor", video_state.get("backend", video_state.get("vendor", ""))))))
-	var backend_family := String(media_info.get("backend_family", backend_context.get("backend_family", video_error.get("backend_family", video_state.get("backend_family", "")))))
 	return {
 		"subsystem": VIDEO_FAILURE_SUBSYSTEM,
 		"stage": stage,
 		"resource_path": resource_path,
 		"requested_asset_path": String(request.get("asset_path", "")),
-		"backend": backend,
-		"backend_family": backend_family,
-		"backend_script": String(backend_context.get("script", "")),
-		"state": video_state.duplicate(true),
-		"video_error": video_error.duplicate(true),
+		"state": _sanitize_video_state(video_state),
+		"media_info": _sanitize_video_media_info(media_info),
+		"video_error": _sanitize_video_error(video_error),
 	}
 
 func _normalize_request(request: Dictionary) -> Dictionary:
