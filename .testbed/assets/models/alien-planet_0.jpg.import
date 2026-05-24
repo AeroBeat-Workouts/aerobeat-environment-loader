@@ -3,15 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bg7feqbg8fvtm"
-path="res://.godot/imported/alien-planet_0.jpg-711c89490981ce5797bbeec607b01566.ctex"
-metadata={
-"vram_texture": false
-}
+valid=false
 
 [deps]
 
 source_file="res://assets/models/alien-planet_0.jpg"
-dest_files=["res://.godot/imported/alien-planet_0.jpg-711c89490981ce5797bbeec607b01566.ctex"]
 
 [params]
 
