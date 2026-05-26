@@ -358,7 +358,7 @@ func _load_glb(request: Dictionary) -> void:
 				"error_code": "missing_scene_root",
 				"message": "GLTF scene bundle did not include a valid scene_root.",
 				"recoverable": false,
-				"details": _dictionary_or_empty(gltf_result.get("details", {})),
+				"details": _sanitize_gltf_details(_dictionary_or_empty(gltf_result.get("details", {}))),
 			}, GLTF_ERROR_STAGE_ATTACH)
 		)
 		return
@@ -376,7 +376,7 @@ func _load_glb(request: Dictionary) -> void:
 				"error_code": ERROR_INVALID_CONFIG,
 				"message": String(config_result.get("message", "GLB config could not be applied.")),
 				"recoverable": true,
-				"details": _dictionary_or_empty(gltf_result.get("details", {})),
+				"details": _sanitize_gltf_details(_dictionary_or_empty(gltf_result.get("details", {}))),
 			}, GLTF_ERROR_STAGE_CONFIG)
 		)
 		return

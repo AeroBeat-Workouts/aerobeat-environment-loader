@@ -191,6 +191,11 @@ func test_load_environment_applies_glb_sidecar_config() -> void:
 	var result_model = CORE_RESULT_SCRIPT.new(result)
 	assert_eq(result_model.kind, "glb")
 	assert_true(result_model.config_applied)
+	var gltf_details: Dictionary = result.get("gltf_details", {})
+	var vendor_details: Dictionary = Dictionary(gltf_details.get("vendor", {}))
+	assert_false(vendor_details.has("document"))
+	assert_false(vendor_details.has("state"))
+	assert_false(vendor_details.has("scene"))
 	await get_tree().process_frame
 
 func test_video_load_uses_shared_video_player_stack() -> void:
@@ -297,7 +302,9 @@ func test_glb_outside_project_loads_through_shared_gltf_stack() -> void:
 	assert_eq((setup["world_root"] as Node3D).get_child_count(), 1)
 	var scene_root := (setup["world_root"] as Node3D).get_child(0)
 	assert_not_null(scene_root)
-	assert_true(Dictionary(result.get("gltf_details", {})).has("vendor"))
+	var gltf_details: Dictionary = result.get("gltf_details", {})
+	assert_true(gltf_details.has("vendor"))
+	assert_false(Dictionary(gltf_details.get("vendor", {})).has("document"))
 	await get_tree().process_frame
 
 func test_clear_environment_unloads_video_manager_state() -> void:
