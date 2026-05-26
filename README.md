@@ -89,6 +89,13 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
   -gexit
 ```
 
+## Current asset-path policy
+
+- Request normalization accepts local `asset_path` values without requiring callers to pre-convert them to `res://`.
+- **Video:** this loader now forwards existing absolute/package-local paths to `AeroVideoPlayerManager` instead of rejecting them early for not being `res://`. Current success still depends on the injected backend's capabilities. In the pinned `aerobeat-vendor-godot-video` slice, verified playback is still limited to importable local Godot resources (`res://` / `user://`), so absolute mod.io package files may currently fail later with truthful backend-backed error details rather than a misleading loader-side "file missing" gate.
+- **GLB:** this repo still loads GLBs through Godot's imported resource pipeline. A local absolute GLB that exists outside `res://` / `user://` is reported as local-but-not-importable instead of being mislabeled missing.
+- Ownership boundary: if we need true package-local video or non-imported GLB support later, that should land in the appropriate playback/resource dependency layers rather than as a silent vendor patch here.
+
 ## Validation notes
 
 - `.testbed/addons.jsonc` is the committed dev/test dependency contract.

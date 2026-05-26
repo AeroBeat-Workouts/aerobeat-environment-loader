@@ -161,9 +161,19 @@ func _load_image(request: Dictionary) -> void:
 
 func _load_video(request: Dictionary) -> void:
 	_emit_progress(request, STATUS_LOADING, 0.1, "Loading video environment...")
-	var resource_path := _to_resource_path(String(request.get("asset_path", "")))
-	if resource_path.is_empty():
-		_emit_failure(request, ERROR_FILE_MISSING, "Video environment must live inside the Godot project so it can be imported: %s" % request.get("asset_path", ""), true)
+	var asset_resolution := _resolve_asset_path(String(request.get("asset_path", "")))
+	var requested_asset_path := String(asset_resolution.get("requested_path", ""))
+	var absolute_path := String(asset_resolution.get("absolute_path", ""))
+	var resource_path := String(asset_resolution.get("resource_path", ""))
+	var load_path := _preferred_video_load_path(asset_resolution)
+	if load_path.is_empty():
+		_emit_failure(
+			request,
+			ERROR_INVALID_REQUEST,
+			"Video request could not be resolved to a loadable local path: %s" % requested_asset_path,
+			true,
+			_build_asset_resolution_details(asset_resolution)
+		)
 		return
 	_emit_progress(request, STATUS_INSTANTIATING, 0.55, "Instantiating video environment...")
 	var surface := _build_video_surface()
@@ -173,32 +183,35 @@ func _load_video(request: Dictionary) -> void:
 	video_manager.attach_surface(surface)
 	var attach_error := _get_video_manager_error(video_manager)
 	if not attach_error.is_empty():
-		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_ATTACH, video_manager, "Video output surface could not be attached.", ERROR_LOADER_FAILED, bool(attach_error.get("recoverable", true)))
-		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
+		_emit_video_failure(request, load_path, VIDEO_ERROR_STAGE_ATTACH, video_manager, "Video output surface could not be attached.", ERROR_LOADER_FAILED, bool(attach_error.get("recoverable", true)), asset_resolution)
+		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, load_path)
 		surface.queue_free()
 		return
 
 	video_manager.load({
-		"path": resource_path,
+		"path": load_path,
 		"kind": "file",
 		"autoplay": false,
 		"metadata": {
 			"environment_request_id": String(request.get("request_id", "")),
 			"environment_kind": KIND_VIDEO,
+			"requested_asset_path": requested_asset_path,
+			"absolute_asset_path": absolute_path,
+			"resource_asset_path": resource_path,
 		},
 	})
 	var load_error := _get_video_manager_error(video_manager)
 	if not load_error.is_empty():
-		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_LOAD, video_manager, "Video stream could not be loaded.", ERROR_LOADER_FAILED, bool(load_error.get("recoverable", true)))
-		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
+		_emit_video_failure(request, load_path, VIDEO_ERROR_STAGE_LOAD, video_manager, "Video stream could not be loaded.", ERROR_LOADER_FAILED, bool(load_error.get("recoverable", true)), asset_resolution)
+		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, load_path)
 		surface.queue_free()
 		return
 
 	video_manager.play()
 	var play_error := _get_video_manager_error(video_manager)
 	if not play_error.is_empty():
-		_emit_video_failure(request, resource_path, VIDEO_ERROR_STAGE_PLAY, video_manager, "Video playback could not be started.", ERROR_LOADER_FAILED, bool(play_error.get("recoverable", true)))
-		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, resource_path)
+		_emit_video_failure(request, load_path, VIDEO_ERROR_STAGE_PLAY, video_manager, "Video playback could not be started.", ERROR_LOADER_FAILED, bool(play_error.get("recoverable", true)), asset_resolution)
+		_unload_video_player_manager(video_manager, request, VIDEO_ERROR_STAGE_UNLOAD, load_path)
 		surface.queue_free()
 		return
 
@@ -214,13 +227,33 @@ func _load_video(request: Dictionary) -> void:
 
 func _load_glb(request: Dictionary) -> void:
 	_emit_progress(request, STATUS_LOADING, 0.1, "Loading GLB environment...")
-	var resource_path := _to_resource_path(String(request.get("asset_path", "")))
+	var asset_resolution := _resolve_asset_path(String(request.get("asset_path", "")))
+	var requested_asset_path := String(asset_resolution.get("requested_path", ""))
+	var absolute_path := String(asset_resolution.get("absolute_path", ""))
+	var resource_path := String(asset_resolution.get("resource_path", ""))
+	if absolute_path.is_empty() or not bool(asset_resolution.get("file_exists", false)):
+		_emit_failure(
+			request,
+			ERROR_FILE_MISSING,
+			"GLB file does not exist: %s" % requested_asset_path,
+			true,
+			_build_asset_resolution_details(asset_resolution)
+		)
+		return
 	if resource_path.is_empty():
-		_emit_failure(request, ERROR_FILE_MISSING, "GLB environment must live inside the Godot project so it can be imported: %s" % request.get("asset_path", ""), true)
+		_emit_failure(
+			request,
+			ERROR_LOADER_FAILED,
+			"GLB file is local but not importable by the current Godot resource pipeline: %s" % requested_asset_path,
+			true,
+			_build_asset_resolution_details(asset_resolution, {
+				"load_requirement": "Current GLB loading in this repo still requires an imported res:// or user:// resource path.",
+			})
+		)
 		return
 	var packed_scene: Variant = load(resource_path)
 	if packed_scene == null or not (packed_scene is PackedScene):
-		_emit_failure(request, ERROR_LOADER_FAILED, "GLB scene could not be loaded: %s" % resource_path, true)
+		_emit_failure(request, ERROR_LOADER_FAILED, "GLB scene could not be loaded: %s" % resource_path, true, _build_asset_resolution_details(asset_resolution))
 		return
 	_emit_progress(request, STATUS_INSTANTIATING, 0.55, "Instantiating GLB environment...")
 	var scene_instance: Node = (packed_scene as PackedScene).instantiate()
@@ -423,14 +456,14 @@ func _sanitize_video_error(video_error: Dictionary) -> Dictionary:
 	sanitized.erase("backend_family")
 	return sanitized
 
-func _emit_video_failure(request: Dictionary, resource_path: String, stage: String, video_manager: Node, fallback_message: String, fallback_error_code: String = ERROR_LOADER_FAILED, fallback_recoverable: bool = true) -> void:
+func _emit_video_failure(request: Dictionary, resource_path: String, stage: String, video_manager: Node, fallback_message: String, fallback_error_code: String = ERROR_LOADER_FAILED, fallback_recoverable: bool = true, asset_resolution: Dictionary = {}) -> void:
 	var video_error := _get_video_manager_error(video_manager)
 	var video_state := _get_video_manager_state(video_manager)
 	var media_info := _get_video_manager_media_info(video_manager)
 	var environment_error_code := _map_video_error_to_environment_code(video_error, resource_path, fallback_error_code)
 	var message := String(video_error.get("message", fallback_message))
 	var recoverable := bool(video_error.get("recoverable", fallback_recoverable))
-	var details := _build_video_failure_details(request, resource_path, stage, video_manager, media_info, video_state, video_error)
+	var details := _build_video_failure_details(request, resource_path, stage, video_manager, media_info, video_state, video_error, asset_resolution)
 	_emit_failure(request, environment_error_code, message, recoverable, details)
 
 func _map_video_error_to_environment_code(video_error: Dictionary, resource_path: String, fallback_error_code: String) -> String:
@@ -447,8 +480,8 @@ func _map_video_error_to_environment_code(video_error: Dictionary, resource_path
 		_:
 			return fallback_error_code
 
-func _build_video_failure_details(request: Dictionary, resource_path: String, stage: String, video_manager: Node, media_info: Dictionary, video_state: Dictionary, video_error: Dictionary) -> Dictionary:
-	return {
+func _build_video_failure_details(request: Dictionary, resource_path: String, stage: String, video_manager: Node, media_info: Dictionary, video_state: Dictionary, video_error: Dictionary, asset_resolution: Dictionary = {}) -> Dictionary:
+	var details := {
 		"subsystem": VIDEO_FAILURE_SUBSYSTEM,
 		"stage": stage,
 		"resource_path": resource_path,
@@ -457,6 +490,37 @@ func _build_video_failure_details(request: Dictionary, resource_path: String, st
 		"media_info": _sanitize_video_media_info(media_info),
 		"video_error": _sanitize_video_error(video_error),
 	}
+	if not asset_resolution.is_empty():
+		details.merge(_build_asset_resolution_details(asset_resolution), true)
+	return details
+
+func _resolve_asset_path(path: String) -> Dictionary:
+	var requested_path := path.strip_edges()
+	var absolute_path := _to_absolute_path(requested_path)
+	var resource_path := _to_resource_path(requested_path)
+	return {
+		"requested_path": requested_path,
+		"absolute_path": absolute_path,
+		"resource_path": resource_path,
+		"file_exists": not absolute_path.is_empty() and FileAccess.file_exists(absolute_path),
+	}
+
+func _preferred_video_load_path(asset_resolution: Dictionary) -> String:
+	var resource_path := String(asset_resolution.get("resource_path", ""))
+	if not resource_path.is_empty():
+		return resource_path
+	return String(asset_resolution.get("absolute_path", ""))
+
+func _build_asset_resolution_details(asset_resolution: Dictionary, extra: Dictionary = {}) -> Dictionary:
+	var details := {
+		"requested_asset_path": String(asset_resolution.get("requested_path", "")),
+		"absolute_asset_path": String(asset_resolution.get("absolute_path", "")),
+		"resource_asset_path": String(asset_resolution.get("resource_path", "")),
+		"asset_exists": bool(asset_resolution.get("file_exists", false)),
+	}
+	if not extra.is_empty():
+		details.merge(extra, true)
+	return details
 
 func _normalize_request(request: Dictionary) -> Dictionary:
 	var result: Dictionary = AERO_ENVIRONMENT_REQUEST_VALIDATOR.normalize_request_dict(request)
