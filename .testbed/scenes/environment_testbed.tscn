@@ -70,7 +70,7 @@ size_flags_vertical = 3
 text = "AeroBeat Environment Loader Testbed"
 
 [node name="Hint" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-text = "Hidden proving surface for .png, .ogv, .glb, .compressed.ply and workout.yaml translation."
+text = "Hidden proving surface for .png, .ogv, .glb, .compressed.ply, and workout package paths. Workout input accepts an absolute package directory or an absolute workout.yaml outside res://."
 autowrap_mode = 3
 
 [node name="CurrentPathLabel" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
@@ -90,7 +90,7 @@ placeholder_text = "Asset path"
 placeholder_text = "Config path (GLB/splat sidecar)"
 
 [node name="WorkoutYamlEdit" type="LineEdit" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-placeholder_text = "workout.yaml path"
+placeholder_text = "Absolute package dir or workout.yaml path"
 
 [node name="ButtonRowOne" type="HBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 
@@ -109,7 +109,7 @@ text = "Load Splat"
 [node name="ButtonRowTwo" type="HBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 
 [node name="LoadWorkoutYamlButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo"]
-text = "Load workout.yaml"
+text = "Load package / workout.yaml"
 
 [node name="ApplyCurrentConfigButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo"]
 text = "Reload w/ config"

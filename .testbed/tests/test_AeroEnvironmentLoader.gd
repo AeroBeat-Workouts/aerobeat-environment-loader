@@ -43,6 +43,46 @@ func _copy_fixture_to_temp(source_path: String, extension: String) -> String:
 	write_handle.close()
 	return target_path
 
+func _copy_fixture_file(source_absolute: String, target_absolute: String) -> void:
+	var read_handle := FileAccess.open(source_absolute, FileAccess.READ)
+	assert_not_null(read_handle)
+	var bytes := read_handle.get_buffer(read_handle.get_length())
+	read_handle.close()
+	var write_handle := FileAccess.open(target_absolute, FileAccess.WRITE)
+	assert_not_null(write_handle)
+	write_handle.store_buffer(bytes)
+	write_handle.close()
+
+func _copy_fixture_directory_recursive(source_absolute: String, target_absolute: String) -> void:
+	assert_eq(DirAccess.make_dir_recursive_absolute(target_absolute), OK)
+	var dir := DirAccess.open(source_absolute)
+	assert_not_null(dir)
+	dir.list_dir_begin()
+	while true:
+		var entry := dir.get_next()
+		if entry.is_empty():
+			break
+		if entry == "." or entry == "..":
+			continue
+		var source_path := source_absolute.path_join(entry)
+		var target_path := target_absolute.path_join(entry)
+		if dir.current_is_dir():
+			_copy_fixture_directory_recursive(source_path, target_path)
+		else:
+			_copy_fixture_file(source_path, target_path)
+	dir.list_dir_end()
+
+func _copy_workout_fixture_package_to_temp() -> Dictionary:
+	var suffix := "%s-%s" % [str(Time.get_unix_time_from_system()), str(Time.get_ticks_usec())]
+	var package_dir := "/tmp/aerobeat-environment-loader-workout-%s" % suffix
+	var source_dir := ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image")
+	_copy_fixture_directory_recursive(source_dir, package_dir)
+	return {
+		"package_dir": package_dir,
+		"workout_path": package_dir.path_join("workout.yaml"),
+		"asset_path": package_dir.path_join("media/environments/demo.png"),
+	}
+
 func test_loader_exports_renamed_environment_identity() -> void:
 	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var script: Script = manager.get_script()
@@ -133,6 +173,41 @@ func test_workout_yaml_bridge_translates_to_generic_request_shape() -> void:
 	assert_eq(request_model.kind, "image")
 	assert_eq(request_model.display_mode, "contain")
 
+func test_workout_yaml_bridge_accepts_absolute_workout_yaml_path() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var workout_path := String(package_copy.get("workout_path", ""))
+	var result := bridge.build_request_from_workout_yaml(workout_path, {
+		"request_id": "yaml-bridge-absolute-workout",
+		"metadata": {"source": "test"},
+	})
+	assert_true(result.get("ok", false))
+	var request: Dictionary = result.get("request", {})
+	assert_eq(request.get("request_id", ""), "yaml-bridge-absolute-workout")
+	assert_eq(request.get("kind", ""), "image")
+	assert_eq(request.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	var metadata := Dictionary(request.get("metadata", {}))
+	assert_eq(metadata.get("package_dir", ""), String(package_copy.get("package_dir", "")))
+	assert_eq(metadata.get("workout_path", ""), workout_path)
+	assert_eq(metadata.get("source", ""), "workout_yaml")
+	assert_eq(metadata.get("environment_record_path", ""), String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-image-demo.yaml"))
+
+func test_workout_yaml_bridge_accepts_absolute_package_directory_path() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var package_dir := String(package_copy.get("package_dir", ""))
+	var result := bridge.build_request_from_workout_yaml(package_dir, {
+		"request_id": "yaml-bridge-absolute-package",
+	})
+	assert_true(result.get("ok", false))
+	var request: Dictionary = result.get("request", {})
+	assert_eq(request.get("request_id", ""), "yaml-bridge-absolute-package")
+	assert_eq(request.get("kind", ""), "image")
+	assert_eq(request.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	var metadata := Dictionary(request.get("metadata", {}))
+	assert_eq(metadata.get("package_dir", ""), package_dir)
+	assert_eq(metadata.get("workout_path", ""), package_dir.path_join("workout.yaml"))
+
 func test_load_environment_from_workout_yaml_emits_progress_and_success() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]
@@ -167,6 +242,25 @@ func test_load_environment_from_workout_yaml_emits_progress_and_success() -> voi
 	assert_eq(current.get("asset_path", ""), result.get("asset_path", ""))
 	assert_eq(current.get("kind", ""), "image")
 	assert_eq((setup["canvas_root"] as Control).get_child_count(), 1)
+	await get_tree().process_frame
+
+func test_load_environment_from_absolute_workout_yaml_path_succeeds() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	manager.load_environment_from_workout_yaml(String(package_copy.get("workout_path", "")), {
+		"request_id": "workout-image-load-absolute",
+		"display_mode": "contain",
+		"metadata": {"source": "absolute-test"},
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("request_id", ""), "workout-image-load-absolute")
+	assert_eq(result.get("kind", ""), "image")
+	assert_eq(result.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(Dictionary(result.get("metadata", {})).get("package_dir", ""), String(package_copy.get("package_dir", "")))
+	assert_eq(Dictionary(result.get("metadata", {})).get("workout_path", ""), String(package_copy.get("workout_path", "")))
+	assert_eq(Dictionary(result.get("metadata", {})).get("source", ""), "workout_yaml")
 	await get_tree().process_frame
 
 func test_load_environment_applies_glb_sidecar_config() -> void:

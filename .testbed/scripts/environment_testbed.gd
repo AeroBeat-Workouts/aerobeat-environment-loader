@@ -1,5 +1,8 @@
 extends Node
 
+const EXTERNAL_WORKOUT_EXAMPLE_PATH := "/home/derrick/Documents/temp/test-workout/workout.yaml"
+const FIXTURE_WORKOUT_YAML_PATH := "res://fixtures/workout_yaml_valid_image/workout.yaml"
+
 @onready var environment_loader = $AeroEnvironmentLoader
 @onready var canvas_root: Control = $CanvasLayer/CanvasRoot
 @onready var world_root: Node3D = $WorldRoot
@@ -20,8 +23,19 @@ func _ready() -> void:
 	environment_loader.environment_load_failed.connect(_on_environment_load_failed)
 	environment_loader.environment_cleared.connect(_on_environment_cleared)
 	_set_sample_image()
-	workout_yaml_edit.text = "res://fixtures/workout_yaml_valid_image/workout.yaml"
+	workout_yaml_edit.text = _default_workout_entry_path()
+	workout_yaml_edit.placeholder_text = "Absolute package dir or workout.yaml path"
 	_append_status("Environment testbed ready.")
+	_append_status("Workout package input accepts an absolute package root or workout.yaml outside res://.")
+	_append_status("Example external path: %s" % EXTERNAL_WORKOUT_EXAMPLE_PATH)
+
+func _default_workout_entry_path() -> String:
+	if FileAccess.file_exists(EXTERNAL_WORKOUT_EXAMPLE_PATH):
+		return EXTERNAL_WORKOUT_EXAMPLE_PATH
+	var fixture_absolute := ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH)
+	if FileAccess.file_exists(fixture_absolute):
+		return fixture_absolute
+	return EXTERNAL_WORKOUT_EXAMPLE_PATH
 
 func _set_sample_image() -> void:
 	asset_path_edit.text = "res://assets/images/perfect-hue-may-14-2026.png"
