@@ -61,7 +61,7 @@ func _ready() -> void:
 
 func load_environment(request: Dictionary) -> void:
 	if not is_active:
-		_emit_failure(_request_stub(request), ERROR_LOADER_FAILED, "AeroToolManager is inactive.", true)
+		_emit_failure(_request_stub(request), ERROR_LOADER_FAILED, "AeroEnvironmentLoader is inactive.", true)
 		return
 	var normalized_result := _normalize_request(request)
 	if not normalized_result.get("ok", false):

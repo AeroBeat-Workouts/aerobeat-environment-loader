@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://b1bmm4k2p2xil"]
 
 [ext_resource type="Script" path="res://scripts/environment_testbed.gd" id="1_testbed"]
-[ext_resource type="Script" path="res://../src/AeroToolManager.gd" id="2_manager"]
+[ext_resource type="Script" path="res://../src/AeroEnvironmentLoader.gd" id="2_manager"]
 
 [node name="EnvironmentTestbed" type="Node"]
 script = ExtResource("1_testbed")
@@ -22,7 +22,7 @@ light_energy = 2.0
 position = Vector3(0, 1.8, 5)
 current = true
 
-[node name="AeroToolManager" type="Node" parent="."]
+[node name="AeroEnvironmentLoader" type="Node" parent="."]
 script = ExtResource("2_manager")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
@@ -67,7 +67,7 @@ offset_bottom = 0.0
 size_flags_vertical = 3
 
 [node name="Title" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-text = "AeroBeat Tool Environment Testbed"
+text = "AeroBeat Environment Loader Testbed"
 
 [node name="Hint" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 text = "Hidden proving surface for .png, .ogv, .glb, .compressed.ply and workout.yaml translation."

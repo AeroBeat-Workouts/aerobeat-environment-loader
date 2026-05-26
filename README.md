@@ -11,7 +11,7 @@ content.
 
 ## What this repo owns now
 
-- the public `AeroToolManager.gd` compatibility entrypoint used by current consumers
+- the public `AeroEnvironmentLoader.gd` entrypoint used by current consumers
 - environment orchestration concerns such as mount roots, current-environment replacement, and signal emission
 - built-in image and GLB fulfillment owned directly in this repo
 - shared video fulfillment composed through the stable `AeroVideoPlayerManager` abstraction while keeping the active playback backend swappable

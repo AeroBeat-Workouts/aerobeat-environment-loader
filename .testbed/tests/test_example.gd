@@ -17,7 +17,7 @@ func test_readme_describes_environment_loader_boundary() -> void:
 	var readme_text := _read_repo_file(README_PATH)
 	assert_true(readme_text.contains("shared **environment loader/orchestrator package**"), "README should describe the environment loader role")
 	assert_true(readme_text.contains("aerobeat-environment-core"), "README should point at the shared environment contract package")
-	assert_true(readme_text.contains("public `AeroToolManager.gd` compatibility entrypoint"), "README should preserve the compatibility-entrypoint commitment")
+	assert_true(readme_text.contains("public `AeroEnvironmentLoader.gd` entrypoint"), "README should document the renamed loader entrypoint")
 	assert_true(readme_text.contains("AeroVideoPlayerManager"), "README should document the shared video facade dependency")
 	assert_true(readme_text.contains("swappable"), "README should describe the backend boundary as swappable")
 	assert_true(readme_text.contains("built-in image and GLB"), "README should keep built-in image/GLB ownership explicit")

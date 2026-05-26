@@ -1,6 +1,6 @@
 extends Node
 
-@onready var environment_manager = $AeroToolManager
+@onready var environment_loader = $AeroEnvironmentLoader
 @onready var canvas_root: Control = $CanvasLayer/CanvasRoot
 @onready var world_root: Node3D = $WorldRoot
 @onready var status_log: RichTextLabel = $CanvasLayer/Ui/Panel/Margin/VBox/StatusLog
@@ -12,13 +12,13 @@ extends Node
 
 func _ready() -> void:
 	display_mode_option.select(0)
-	environment_manager.canvas_root_path = NodePath("../CanvasLayer/CanvasRoot")
-	environment_manager.world_root_path = NodePath("../WorldRoot")
-	environment_manager.environment_load_started.connect(_on_environment_load_started)
-	environment_manager.environment_load_progress.connect(_on_environment_load_progress)
-	environment_manager.environment_load_succeeded.connect(_on_environment_load_succeeded)
-	environment_manager.environment_load_failed.connect(_on_environment_load_failed)
-	environment_manager.environment_cleared.connect(_on_environment_cleared)
+	environment_loader.canvas_root_path = NodePath("../CanvasLayer/CanvasRoot")
+	environment_loader.world_root_path = NodePath("../WorldRoot")
+	environment_loader.environment_load_started.connect(_on_environment_load_started)
+	environment_loader.environment_load_progress.connect(_on_environment_load_progress)
+	environment_loader.environment_load_succeeded.connect(_on_environment_load_succeeded)
+	environment_loader.environment_load_failed.connect(_on_environment_load_failed)
+	environment_loader.environment_cleared.connect(_on_environment_cleared)
 	_set_sample_image()
 	workout_yaml_edit.text = "res://fixtures/workout_yaml_valid_image/workout.yaml"
 	_append_status("Environment testbed ready.")
@@ -43,7 +43,7 @@ func _selected_display_mode() -> String:
 	return "contain" if display_mode_option.selected == 1 else "cover"
 
 func _load_kind(kind: String) -> void:
-	environment_manager.load_environment({
+	environment_loader.load_environment({
 		"request_id": "%s-demo" % kind,
 		"kind": kind,
 		"asset_path": asset_path_edit.text,
@@ -74,7 +74,7 @@ func _on_load_splat_pressed() -> void:
 	_load_kind("splat")
 
 func _on_load_from_workout_yaml_pressed() -> void:
-	environment_manager.load_environment_from_workout_yaml(workout_yaml_edit.text, {
+	environment_loader.load_environment_from_workout_yaml(workout_yaml_edit.text, {
 		"request_id": "workout-yaml-demo",
 		"display_mode": _selected_display_mode(),
 		"context": {
@@ -87,10 +87,10 @@ func _on_load_from_workout_yaml_pressed() -> void:
 	})
 
 func _on_clear_pressed() -> void:
-	environment_manager.clear_environment()
+	environment_loader.clear_environment()
 
 func _on_save_current_config_pressed() -> void:
-	var current: Dictionary = environment_manager.get_current_environment()
+	var current: Dictionary = environment_loader.get_current_environment()
 	var target := world_root.get_child(0) if world_root.get_child_count() > 0 else null
 	if current.is_empty() or target == null or not (target is Node3D):
 		_append_status("No 3D environment is active; nothing to save.")
@@ -118,7 +118,7 @@ func _on_save_current_config_pressed() -> void:
 	_append_status("Saved environment config to %s" % config_path)
 
 func _on_apply_current_config_pressed() -> void:
-	var current: Dictionary = environment_manager.get_current_environment()
+	var current: Dictionary = environment_loader.get_current_environment()
 	if current.is_empty():
 		_append_status("No active environment to reload.")
 		return
@@ -134,7 +134,7 @@ func _on_apply_current_config_pressed() -> void:
 		},
 		"metadata": current.get("metadata", {}),
 	}
-	environment_manager.load_environment(request)
+	environment_loader.load_environment(request)
 
 func _on_environment_load_started(request: Dictionary) -> void:
 	current_path_label.text = "Current asset: %s" % String(request.get("asset_path", ""))

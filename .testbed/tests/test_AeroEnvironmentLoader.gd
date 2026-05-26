@@ -1,6 +1,6 @@
 extends GutTest
 
-const AERO_TOOL_MANAGER_SCRIPT = preload("res://../src/AeroToolManager.gd")
+const AERO_ENVIRONMENT_LOADER_SCRIPT = preload("res://../src/AeroEnvironmentLoader.gd")
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("res://../src/AeroWorkoutYamlEnvironmentBridge.gd")
 const CORE_CONSTANTS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const CORE_REQUEST_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_request.gd")
@@ -18,7 +18,7 @@ func _make_manager() -> Dictionary:
 	var world_root := Node3D.new()
 	world_root.name = "WorldRoot"
 	root.add_child(world_root)
-	var manager = AERO_TOOL_MANAGER_SCRIPT.new()
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	manager.canvas_root_path = NodePath("../CanvasRoot")
 	manager.world_root_path = NodePath("../WorldRoot")
 	root.add_child(manager)
@@ -29,17 +29,32 @@ func _make_manager() -> Dictionary:
 		"manager": manager,
 	}
 
+func test_loader_exports_renamed_environment_identity() -> void:
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
+	var script: Script = manager.get_script()
+	assert_false(script.resource_path.ends_with("AeroToolManager.gd"))
+	assert_true(script.resource_path.ends_with("AeroEnvironmentLoader.gd"))
+	manager.free()
+
+func test_loader_video_stack_stays_on_shared_facade() -> void:
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
+	var script: Script = manager.get_script()
+	var source_text := FileAccess.get_file_as_string(script.resource_path)
+	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")'))
+	assert_false(source_text.contains("VideoStreamPlayer"))
+	manager.free()
+
 func test_loader_constants_match_environment_core_contract() -> void:
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_IMAGE, CORE_CONSTANTS_SCRIPT.KIND_IMAGE)
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_VIDEO, CORE_CONSTANTS_SCRIPT.KIND_VIDEO)
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_GLB, CORE_CONSTANTS_SCRIPT.KIND_GLB)
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.KIND_SPLAT, CORE_CONSTANTS_SCRIPT.KIND_SPLAT)
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.STATUS_READY, CORE_CONSTANTS_SCRIPT.STATUS_READY)
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.ERROR_INVALID_REQUEST, CORE_CONSTANTS_SCRIPT.ERROR_INVALID_REQUEST)
-	assert_eq(AERO_TOOL_MANAGER_SCRIPT.OFFICIAL_FORMATS, CORE_CONSTANTS_SCRIPT.OFFICIAL_FORMATS)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.KIND_IMAGE, CORE_CONSTANTS_SCRIPT.KIND_IMAGE)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.KIND_VIDEO, CORE_CONSTANTS_SCRIPT.KIND_VIDEO)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.KIND_GLB, CORE_CONSTANTS_SCRIPT.KIND_GLB)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.KIND_SPLAT, CORE_CONSTANTS_SCRIPT.KIND_SPLAT)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.STATUS_READY, CORE_CONSTANTS_SCRIPT.STATUS_READY)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.ERROR_INVALID_REQUEST, CORE_CONSTANTS_SCRIPT.ERROR_INVALID_REQUEST)
+	assert_eq(AERO_ENVIRONMENT_LOADER_SCRIPT.OFFICIAL_FORMATS, CORE_CONSTANTS_SCRIPT.OFFICIAL_FORMATS)
 
 func test_supports_kind_and_official_formats_are_locked() -> void:
-	var manager = AERO_TOOL_MANAGER_SCRIPT.new()
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	assert_true(manager.supports_kind("image"))
 	assert_true(manager.supports_kind("video"))
 	assert_true(manager.supports_kind("glb"))
@@ -51,7 +66,7 @@ func test_supports_kind_and_official_formats_are_locked() -> void:
 	manager.free()
 
 func test_normalize_request_rejects_kind_extension_mismatch() -> void:
-	var manager = AERO_TOOL_MANAGER_SCRIPT.new()
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var result := manager._normalize_request({
 		"kind": "image",
 		"asset_path": "res://assets/videos/calm_blue_sea_1.ogv",
@@ -61,7 +76,7 @@ func test_normalize_request_rejects_kind_extension_mismatch() -> void:
 	manager.free()
 
 func test_normalize_request_matches_environment_core_validator() -> void:
-	var manager = AERO_TOOL_MANAGER_SCRIPT.new()
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var request := {
 		"request_id": "  glb-sidecar-test  ",
 		"kind": " GLB ",
