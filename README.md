@@ -13,7 +13,8 @@ content.
 
 - the public `AeroEnvironmentLoader.gd` entrypoint used by current consumers
 - environment orchestration concerns such as mount roots, current-environment replacement, and signal emission
-- built-in image and GLB fulfillment owned directly in this repo
+- built-in image fulfillment owned directly in this repo
+- GLB fulfillment orchestrated through the shared `AeroGLTFTool` facade while keeping the active runtime/vendor backend behind the tool stack
 - shared video fulfillment composed through the stable `AeroVideoPlayerManager` abstraction while keeping the active playback backend swappable
 - the lightweight workout/YAML bridge and parser that resolve a package into a generic environment request
 - placeholder splat loading behavior until specialized fulfillment repos take over that path
@@ -23,7 +24,7 @@ content.
 - the shared environment contract truth for request/result/error/progress/config types
 - the canonical kind/status constants and request normalization helpers
 - specialized fulfillment implementations that belong in sibling environment-family repos
-- the shared video playback contract/facade/backend repos, beyond consuming them as dependencies here
+- the shared GLTF and video tool/vendor stacks, beyond consuming them as dependencies here
 
 ## Repository Details
 
@@ -34,6 +35,8 @@ content.
   - `aerobeat-tool-core` — shared video playback vocabulary consumed by the video stack
   - `aerobeat-tool-video-player` — stable `AeroVideoPlayerManager` playback facade for environment video fulfillment
   - `aerobeat-vendor-godot-video` — current default backend package that satisfies the shared video facade behind this repo
+  - `aerobeat-tool-gltf` — stable `AeroGLTFTool` scene-loading facade for GLB/GLTF environment fulfillment
+  - `aerobeat-vendor-godot-gltf` — current default runtime backend package behind the shared GLTF facade
   - additional adjacent environment-family repos only when this loader intentionally composes them
 
 ## GodotEnv development flow
@@ -59,8 +62,9 @@ From the repo root:
 ```
 
 That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, the loader
-manifest now includes `aerobeat-environment-core` plus the shared video stack (`aerobeat-tool-core`,
-`aerobeat-tool-video-player`, `aerobeat-vendor-godot-video`) and repo-local test tooling.
+manifest now includes `aerobeat-environment-core`, the shared GLTF stack (`aerobeat-tool-gltf`,
+`aerobeat-vendor-godot-gltf`), the shared video stack (`aerobeat-tool-core`,
+`aerobeat-tool-video-player`, `aerobeat-vendor-godot-video`), and repo-local test tooling.
 
 ### Open the workbench
 
@@ -92,17 +96,17 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
 ## Current asset-path policy
 
 - Request normalization accepts local `asset_path` values without requiring callers to pre-convert them to `res://`.
-- **Video:** this loader now forwards existing absolute/package-local paths to `AeroVideoPlayerManager` instead of rejecting them early for not being `res://`. Current success still depends on the injected backend's capabilities. In the pinned `aerobeat-vendor-godot-video` slice, verified playback is still limited to importable local Godot resources (`res://` / `user://`), so absolute mod.io package files may currently fail later with truthful backend-backed error details rather than a misleading loader-side "file missing" gate.
-- **GLB:** this repo still loads GLBs through Godot's imported resource pipeline. A local absolute GLB that exists outside `res://` / `user://` is reported as local-but-not-importable instead of being mislabeled missing.
-- Ownership boundary: if we need true package-local video or non-imported GLB support later, that should land in the appropriate playback/resource dependency layers rather than as a silent vendor patch here.
+- **Video:** this loader now forwards existing absolute/package-local paths to `AeroVideoPlayerManager` instead of rejecting them early for not being `res://`. In the pinned `aerobeat-vendor-godot-video` slice, verified playback now includes both importable resource paths and absolute local file paths, with any backend limitations still surfaced as truthful playback-backed error details rather than a misleading loader-side gate.
+- **GLB:** this repo now routes GLB loading through `AeroGLTFTool`, so packaged and external local GLBs follow the shared GLTF tool/vendor path instead of a loader-owned imported-resource branch. Loader-side failures are mapped into environment-domain errors while the underlying runtime details stay in the GLTF stack's result details.
+- Ownership boundary: if we need richer package-local video or GLTF source transports later, that should land in the appropriate playback/resource dependency layers rather than as a silent vendor patch here.
 
 ## Validation notes
 
 - `.testbed/addons.jsonc` is the committed dev/test dependency contract.
-- The canonical manifest for this repo is `aerobeat-environment-core` + the shared video stack + `gut`.
+- The canonical manifest for this repo is `aerobeat-environment-core` + the shared GLTF stack + the shared video stack + `gut`.
 - Repo-local tests validate both the current loader behavior and that the loader stays coherent with
-  the core-owned contract subtree while routing video loads through `AeroVideoPlayerManager` without
-  exposing vendor-specific playback details to loader consumers.
+  the core-owned contract subtree while routing GLB loads through `AeroGLTFTool` and video loads through
+  `AeroVideoPlayerManager` without exposing vendor-specific runtime details to loader consumers.
 - Preserve the compatibility surface first: loader callers can keep using dictionary requests/signals
   even though the internal contract truth now lives in `aerobeat-environment-core` and video playback
   now routes through the shared sibling packages.

@@ -6,9 +6,108 @@ signal environment_load_succeeded(result: Dictionary)
 signal environment_load_failed(error: Dictionary)
 signal environment_cleared()
 
+class _AeroEnvironmentLoaderGLTFBackendAdapter:
+	extends RefCounted
+
+	const RUNTIME_LOADER_SCRIPT_PATHS := [
+		"res://addons/aerobeat-vendor-godot-gltf/loaders/aero_godot_gltf_runtime_loader.gd",
+	]
+
+	var _runtime_loader: Variant = null
+
+	func load_scene_bundle(request: Dictionary) -> Dictionary:
+		var asset_path := String(request.get("asset_path", "")).strip_edges()
+		var format := String(request.get("format", request.get("container", ""))).strip_edges().to_lower()
+		var runtime_loader: Variant = _resolve_runtime_loader()
+		if runtime_loader == null or not runtime_loader.has_method("load_source"):
+			return {
+				"ok": false,
+				"error_code": "vendor_runtime_unavailable",
+				"message": "Vendor GLTF runtime loader is unavailable.",
+				"recoverable": true,
+				"details": {
+					"asset_path": asset_path,
+					"format": format,
+				},
+			}
+
+		var source := {
+			"path": asset_path,
+			"format": format,
+		}
+		var instantiate := bool(request.get("instantiate", true))
+		var runtime_result: Dictionary = runtime_loader.load_scene(source) if instantiate else runtime_loader.load_source(source)
+		if not bool(runtime_result.get("success", false)):
+			return {
+				"ok": false,
+				"error_code": String(runtime_result.get("code", "vendor_load_failed")),
+				"message": String(runtime_result.get("message", "Vendor GLTF runtime loader failed.")),
+				"recoverable": true,
+				"details": _dictionary_or_empty_static(runtime_result.get("detail", {})),
+			}
+
+		var detail := _dictionary_or_empty_static(runtime_result.get("detail", {}))
+		var normalized_path := _normalize_asset_path(asset_path)
+		var resource_path := _resource_path_for(asset_path)
+		var scene_root: Variant = detail.get("scene", null)
+		var packed_scene: PackedScene = null
+		if instantiate and scene_root != null:
+			packed_scene = PackedScene.new()
+			var pack_error := packed_scene.pack(scene_root)
+			if pack_error != OK:
+				packed_scene = null
+
+		return {
+			"ok": true,
+			"asset_path": asset_path,
+			"absolute_path": normalized_path,
+			"resource_path": resource_path,
+			"format": format,
+			"container": String(request.get("container", format)),
+			"scene_root": scene_root,
+			"packed_scene": packed_scene,
+			"warnings": [],
+			"details": {
+				"vendor": detail,
+				"instantiate": instantiate,
+			},
+		}
+
+	func _resolve_runtime_loader() -> Variant:
+		if _runtime_loader != null and _runtime_loader.has_method("load_source"):
+			return _runtime_loader
+
+		for script_path in RUNTIME_LOADER_SCRIPT_PATHS:
+			if not ResourceLoader.exists(script_path, "Script"):
+				continue
+			var script_resource: Variant = load(script_path)
+			if script_resource == null or not script_resource.has_method("new"):
+				continue
+			_runtime_loader = script_resource.new()
+			if _runtime_loader != null and _runtime_loader.has_method("load_source"):
+				return _runtime_loader
+
+		return null
+
+	func _normalize_asset_path(asset_path: String) -> String:
+		if asset_path.is_empty():
+			return ""
+		return ProjectSettings.globalize_path(asset_path) if asset_path.begins_with("res://") or asset_path.begins_with("user://") else asset_path.simplify_path()
+
+	func _resource_path_for(asset_path: String) -> String:
+		if asset_path.begins_with("res://"):
+			return asset_path
+		return ""
+
+	static func _dictionary_or_empty_static(value: Variant) -> Dictionary:
+		if value is Dictionary:
+			return Dictionary(value).duplicate(true)
+		return {}
+
 const VERSION: String = "0.2.0"
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironmentBridge.gd")
 const AERO_VIDEO_PLAYER_MANAGER_SCRIPT = preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")
+const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf/src/AeroGLTFTool.gd")
 const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const AERO_ENVIRONMENT_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
 const AERO_ENVIRONMENT_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
@@ -41,6 +140,10 @@ const VIDEO_ERROR_STAGE_ATTACH := "attach_surface"
 const VIDEO_ERROR_STAGE_LOAD := "load"
 const VIDEO_ERROR_STAGE_PLAY := "play"
 const VIDEO_ERROR_STAGE_UNLOAD := "unload"
+const GLTF_FAILURE_SUBSYSTEM := "gltf"
+const GLTF_ERROR_STAGE_LOAD := "load"
+const GLTF_ERROR_STAGE_ATTACH := "attach_scene_root"
+const GLTF_ERROR_STAGE_CONFIG := "apply_config"
 
 @export var is_active: bool = true
 @export var canvas_root_path: NodePath
@@ -54,6 +157,7 @@ var _current_display_node: Node
 var _active_request: Dictionary = {}
 var _bridge: RefCounted
 var _video_player_manager: Node
+var _gltf_tool: RefCounted
 
 func _ready() -> void:
 	_bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
@@ -227,47 +331,62 @@ func _load_video(request: Dictionary) -> void:
 
 func _load_glb(request: Dictionary) -> void:
 	_emit_progress(request, STATUS_LOADING, 0.1, "Loading GLB environment...")
-	var asset_resolution := _resolve_asset_path(String(request.get("asset_path", "")))
-	var requested_asset_path := String(asset_resolution.get("requested_path", ""))
-	var absolute_path := String(asset_resolution.get("absolute_path", ""))
-	var resource_path := String(asset_resolution.get("resource_path", ""))
-	if absolute_path.is_empty() or not bool(asset_resolution.get("file_exists", false)):
-		_emit_failure(
-			request,
-			ERROR_FILE_MISSING,
-			"GLB file does not exist: %s" % requested_asset_path,
-			true,
-			_build_asset_resolution_details(asset_resolution)
-		)
+	var gltf_tool := _ensure_gltf_tool()
+	var gltf_result: Dictionary = gltf_tool.load_scene({
+		"asset_path": String(request.get("asset_path", "")),
+		"container": "glb",
+		"format": "glb",
+		"instantiate": true,
+		"metadata": {
+			"environment_request_id": String(request.get("request_id", "")),
+			"environment_kind": KIND_GLB,
+			"requested_asset_path": String(request.get("asset_path", "")),
+		},
+	})
+	if not gltf_result.get("ok", false):
+		_emit_gltf_failure(request, gltf_result)
 		return
-	if resource_path.is_empty():
+	_emit_progress(request, STATUS_INSTANTIATING, 0.55, "Attaching GLB environment...")
+	var scene_root: Variant = gltf_result.get("scene_root", null)
+	if scene_root == null or not (scene_root is Node):
 		_emit_failure(
 			request,
 			ERROR_LOADER_FAILED,
-			"GLB file is local but not importable by the current Godot resource pipeline: %s" % requested_asset_path,
-			true,
-			_build_asset_resolution_details(asset_resolution, {
-				"load_requirement": "Current GLB loading in this repo still requires an imported res:// or user:// resource path.",
-			})
+			"GLTF scene bundle did not include a valid scene_root.",
+			false,
+			_build_gltf_failure_details(request, {
+				"error_code": "missing_scene_root",
+				"message": "GLTF scene bundle did not include a valid scene_root.",
+				"recoverable": false,
+				"details": _dictionary_or_empty(gltf_result.get("details", {})),
+			}, GLTF_ERROR_STAGE_ATTACH)
 		)
 		return
-	var packed_scene: Variant = load(resource_path)
-	if packed_scene == null or not (packed_scene is PackedScene):
-		_emit_failure(request, ERROR_LOADER_FAILED, "GLB scene could not be loaded: %s" % resource_path, true, _build_asset_resolution_details(asset_resolution))
-		return
-	_emit_progress(request, STATUS_INSTANTIATING, 0.55, "Instantiating GLB environment...")
-	var scene_instance: Node = (packed_scene as PackedScene).instantiate()
-	if scene_instance == null:
-		_emit_failure(request, ERROR_LOADER_FAILED, "GLB scene could not be instantiated: %s" % resource_path, true)
-		return
+	var scene_instance := scene_root as Node
 	_world_root.add_child(scene_instance)
 	var config_result: Dictionary = _apply_config_if_present(request, scene_instance)
 	if not config_result.get("ok", false):
 		scene_instance.queue_free()
-		_emit_failure(request, ERROR_INVALID_CONFIG, String(config_result.get("message", "GLB config could not be applied.")), true)
+		_emit_failure(
+			request,
+			ERROR_INVALID_CONFIG,
+			String(config_result.get("message", "GLB config could not be applied.")),
+			true,
+			_build_gltf_failure_details(request, {
+				"error_code": ERROR_INVALID_CONFIG,
+				"message": String(config_result.get("message", "GLB config could not be applied.")),
+				"recoverable": true,
+				"details": _dictionary_or_empty(gltf_result.get("details", {})),
+			}, GLTF_ERROR_STAGE_CONFIG)
+		)
 		return
 	_finalize_success(request, scene_instance, {
 		"format": OFFICIAL_FORMATS[KIND_GLB],
+		"container": String(gltf_result.get("container", "glb")),
+		"resource_path": String(gltf_result.get("resource_path", "")),
+		"absolute_path": String(gltf_result.get("absolute_path", "")),
+		"warnings": _array_or_empty(gltf_result.get("warnings", [])),
+		"gltf_details": _sanitize_gltf_details(_dictionary_or_empty(gltf_result.get("details", {}))),
 		"config_path": String(config_result.get("config_path", "")),
 		"config_applied": bool(config_result.get("config_applied", false)),
 		"config": config_result.get("config", {}),
@@ -347,6 +466,14 @@ func _ensure_video_player_manager() -> Node:
 
 func _teardown_video_player_manager() -> void:
 	_unload_video_player_manager(_video_player_manager)
+
+func _ensure_gltf_tool() -> RefCounted:
+	if _gltf_tool != null:
+		return _gltf_tool
+	_gltf_tool = AERO_GLTF_TOOL_SCRIPT.new()
+	if _gltf_tool != null and _gltf_tool.has_method("set_runtime_backend"):
+		_gltf_tool.set_runtime_backend(_AeroEnvironmentLoaderGLTFBackendAdapter.new())
+	return _gltf_tool
 
 func _unload_video_player_manager(video_manager: Node, request: Dictionary = {}, stage: String = VIDEO_ERROR_STAGE_UNLOAD, resource_path: String = "") -> void:
 	if video_manager == null or not is_instance_valid(video_manager):
@@ -493,6 +620,66 @@ func _build_video_failure_details(request: Dictionary, resource_path: String, st
 	if not asset_resolution.is_empty():
 		details.merge(_build_asset_resolution_details(asset_resolution), true)
 	return details
+
+func _emit_gltf_failure(request: Dictionary, gltf_result: Dictionary, stage: String = GLTF_ERROR_STAGE_LOAD) -> void:
+	var environment_error_code := _map_gltf_error_to_environment_code(request, gltf_result)
+	var message := String(gltf_result.get("message", "GLTF scene bundle could not be loaded."))
+	var recoverable := bool(gltf_result.get("recoverable", true))
+	var details := _build_gltf_failure_details(request, gltf_result, stage)
+	_emit_failure(request, environment_error_code, message, recoverable, details)
+
+func _map_gltf_error_to_environment_code(request: Dictionary, gltf_result: Dictionary) -> String:
+	var code := String(gltf_result.get("error_code", "")).strip_edges().to_lower()
+	match code:
+		ERROR_UNSUPPORTED_FORMAT, "unsupported_format":
+			return ERROR_UNSUPPORTED_FORMAT
+		ERROR_INVALID_REQUEST, "invalid_request":
+			return ERROR_INVALID_REQUEST
+		"invalid_source":
+			var validation_error: Dictionary = _dictionary_or_empty(_dictionary_or_empty(gltf_result.get("details", {})).get("validation_error", {}))
+			var field := String(validation_error.get("field", "")).strip_edges().to_lower()
+			if field == "format":
+				return ERROR_UNSUPPORTED_FORMAT
+			if field == "path":
+				return ERROR_INVALID_REQUEST
+			return ERROR_INVALID_REQUEST
+		"load_failed":
+			var asset_resolution := _resolve_asset_path(String(request.get("asset_path", "")))
+			if not bool(asset_resolution.get("file_exists", false)):
+				return ERROR_FILE_MISSING
+			return ERROR_LOADER_FAILED
+		"backend_unavailable", "backend_failed", "scene_generation_failed", "invalid_load_result":
+			return ERROR_LOADER_FAILED
+		_:
+			return ERROR_LOADER_FAILED
+
+func _build_gltf_failure_details(request: Dictionary, gltf_result: Dictionary, stage: String = GLTF_ERROR_STAGE_LOAD) -> Dictionary:
+	var asset_resolution := _resolve_asset_path(String(request.get("asset_path", "")))
+	var details := {
+		"subsystem": GLTF_FAILURE_SUBSYSTEM,
+		"stage": stage,
+		"gltf_error": {
+			"code": String(gltf_result.get("error_code", "")),
+			"message": String(gltf_result.get("message", "")),
+			"recoverable": bool(gltf_result.get("recoverable", true)),
+			"details": _sanitize_gltf_details(_dictionary_or_empty(gltf_result.get("details", {}))),
+		},
+	}
+	details.merge(_build_asset_resolution_details(asset_resolution), true)
+	return details
+
+func _sanitize_gltf_details(gltf_details: Dictionary) -> Dictionary:
+	var sanitized := gltf_details.duplicate(true)
+	if sanitized.has("vendor") and sanitized["vendor"] is Dictionary:
+		var vendor_details := Dictionary(sanitized["vendor"]).duplicate(true)
+		vendor_details.erase("document")
+		vendor_details.erase("state")
+		vendor_details.erase("scene")
+		sanitized["vendor"] = vendor_details
+	sanitized.erase("document")
+	sanitized.erase("state")
+	sanitized.erase("scene")
+	return sanitized
 
 func _resolve_asset_path(path: String) -> Dictionary:
 	var requested_path := path.strip_edges()
@@ -670,6 +857,16 @@ func _to_absolute_path(path: String) -> String:
 
 func _to_resource_path(path: String) -> String:
 	return AERO_ENVIRONMENT_REQUEST_VALIDATOR.to_resource_path(path)
+
+func _array_or_empty(value: Variant) -> Array:
+	if value is Array:
+		return Array(value).duplicate(true)
+	return []
+
+func _dictionary_or_empty(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return Dictionary(value).duplicate(true)
+	return {}
 
 func _dictionary_from_request_variant(value: Variant) -> Dictionary:
 	if value is Dictionary:

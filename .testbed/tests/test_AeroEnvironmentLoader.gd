@@ -2,6 +2,7 @@ extends GutTest
 
 const AERO_ENVIRONMENT_LOADER_SCRIPT = preload("res://../src/AeroEnvironmentLoader.gd")
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("res://../src/AeroWorkoutYamlEnvironmentBridge.gd")
+const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf/src/AeroGLTFTool.gd")
 const CORE_CONSTANTS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const CORE_REQUEST_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_request.gd")
 const CORE_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
@@ -55,6 +56,15 @@ func test_loader_video_stack_stays_on_shared_facade() -> void:
 	var source_text := FileAccess.get_file_as_string(script.resource_path)
 	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")'))
 	assert_false(source_text.contains("VideoStreamPlayer"))
+	manager.free()
+
+func test_loader_glb_stack_stays_on_shared_facade() -> void:
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
+	var script: Script = manager.get_script()
+	var source_text := FileAccess.get_file_as_string(script.resource_path)
+	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-gltf/src/AeroGLTFTool.gd")'))
+	assert_true(source_text.contains("load_scene({"))
+	assert_false(source_text.contains("PackedScene).instantiate()"))
 	manager.free()
 
 func test_loader_constants_match_environment_core_contract() -> void:
@@ -244,32 +254,30 @@ func test_video_stack_failures_bridge_into_environment_error_details() -> void:
 	assert_eq(error_model.details.get("subsystem", ""), "video")
 	await get_tree().process_frame
 
-func test_failure_payload_round_trips_through_core_error_contract() -> void:
+func test_external_video_path_round_trips_through_core_result_contract() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]
 	var temp_video_path := _copy_fixture_to_temp("res://assets/videos/calm_blue_sea_1.ogv", "ogv")
 	manager.load_environment({
-		"request_id": "bad-video-load",
+		"request_id": "external-video-load",
 		"kind": "video",
 		"asset_path": temp_video_path,
 		"metadata": {"source": "test"},
 	})
-	var error: Dictionary = await manager.environment_load_failed
-	assert_false(error.get("ok", true))
-	assert_eq(error.get("error_code", ""), manager.ERROR_FILE_MISSING)
-	assert_eq(error.get("message", ""), "Godot could not load the requested video stream resource.")
-	var error_model = CORE_ERROR_SCRIPT.new(error)
-	assert_eq(error_model.request_id, "bad-video-load")
-	assert_eq(error_model.metadata.get("source", ""), "test")
-	assert_eq(error_model.details.get("requested_asset_path", ""), temp_video_path)
-	assert_eq(error_model.details.get("absolute_asset_path", ""), temp_video_path)
-	assert_eq(error_model.details.get("resource_asset_path", ""), "")
-	assert_true(bool(error_model.details.get("asset_exists", false)))
-	assert_eq(error_model.details.get("resource_path", ""), temp_video_path)
-	assert_eq(Dictionary(error_model.details.get("video_error", {})).get("code", ""), "backend_stream_load_failed")
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("request_id", ""), "external-video-load")
+	assert_eq(result.get("asset_path", ""), temp_video_path)
+	assert_eq(result.get("kind", ""), "video")
+	var result_model = CORE_RESULT_SCRIPT.new(result)
+	assert_eq(result_model.request_id, "external-video-load")
+	assert_eq(result_model.metadata.get("source", ""), "test")
+	assert_eq(Dictionary(result.get("media_info", {})).get("path", ""), temp_video_path)
+	assert_eq(Dictionary(result.get("media_info", {})).get("locality", ""), "absolute_path")
+	assert_eq(Dictionary(result.get("playback_state", {})).get("state", ""), "playing")
 	await get_tree().process_frame
 
-func test_glb_outside_project_reports_local_but_not_importable() -> void:
+func test_glb_outside_project_loads_through_shared_gltf_stack() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]
 	var temp_glb_path := _copy_fixture_to_temp("res://assets/models/alien-planet.glb", "glb")
@@ -279,15 +287,17 @@ func test_glb_outside_project_reports_local_but_not_importable() -> void:
 		"asset_path": temp_glb_path,
 		"metadata": {"source": "test"},
 	})
-	var error: Dictionary = await manager.environment_load_failed
-	assert_false(error.get("ok", true))
-	assert_eq(error.get("error_code", ""), manager.ERROR_LOADER_FAILED)
-	assert_eq(error.get("message", ""), "GLB file is local but not importable by the current Godot resource pipeline: %s" % temp_glb_path)
-	assert_eq(Dictionary(error.get("details", {})).get("requested_asset_path", ""), temp_glb_path)
-	assert_eq(Dictionary(error.get("details", {})).get("absolute_asset_path", ""), temp_glb_path)
-	assert_eq(Dictionary(error.get("details", {})).get("resource_asset_path", ""), "")
-	assert_true(bool(Dictionary(error.get("details", {})).get("asset_exists", false)))
-	assert_true(String(Dictionary(error.get("details", {})).get("load_requirement", "")).contains("res:// or user://"))
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("kind", ""), "glb")
+	assert_eq(result.get("asset_path", ""), temp_glb_path)
+	assert_eq(result.get("absolute_path", ""), temp_glb_path)
+	assert_eq(result.get("resource_path", ""), "")
+	assert_false(result.get("config_applied", true))
+	assert_eq((setup["world_root"] as Node3D).get_child_count(), 1)
+	var scene_root := (setup["world_root"] as Node3D).get_child(0)
+	assert_not_null(scene_root)
+	assert_true(Dictionary(result.get("gltf_details", {})).has("vendor"))
 	await get_tree().process_frame
 
 func test_clear_environment_unloads_video_manager_state() -> void:
