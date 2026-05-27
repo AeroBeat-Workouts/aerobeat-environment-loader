@@ -1,4 +1,4 @@
-# workout_yaml_valid_image
+# workout_yaml_valid_all_kinds
 
 Committed workout-package fixture for the environment-loader testbed.
 

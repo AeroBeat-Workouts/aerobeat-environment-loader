@@ -1,6 +1,6 @@
 extends Node
 
-const FIXTURE_WORKOUT_YAML_PATH := "res://fixtures/workout_yaml_valid_image/workout.yaml"
+const FIXTURE_WORKOUT_YAML_PATH := "res://fixtures/workout_yaml_valid_all_kinds/workout.yaml"
 
 @onready var environment_loader = $AeroEnvironmentLoader
 @onready var world_root: Node3D = $WorldRoot

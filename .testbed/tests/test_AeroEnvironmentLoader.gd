@@ -9,6 +9,8 @@ const CORE_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/c
 const CORE_PROGRESS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_progress.gd")
 const CORE_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
 const CORE_REQUEST_VALIDATOR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_request_validator.gd")
+const FIXTURE_PACKAGE_DIR_PATH := "res://fixtures/workout_yaml_valid_all_kinds"
+const FIXTURE_WORKOUT_YAML_PATH := "%s/workout.yaml" % FIXTURE_PACKAGE_DIR_PATH
 
 func _make_manager() -> Dictionary:
 	var root := Node.new()
@@ -75,7 +77,7 @@ func _copy_fixture_directory_recursive(source_absolute: String, target_absolute:
 func _copy_workout_fixture_package_to_temp() -> Dictionary:
 	var suffix := "%s-%s" % [str(Time.get_unix_time_from_system()), str(Time.get_ticks_usec())]
 	var package_dir := "/tmp/aerobeat-environment-loader-workout-%s" % suffix
-	var source_dir := ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image")
+	var source_dir := ProjectSettings.globalize_path(FIXTURE_PACKAGE_DIR_PATH)
 	_copy_fixture_directory_recursive(source_dir, package_dir)
 	var media_dir := package_dir.path_join("media/environments")
 	assert_eq(DirAccess.make_dir_recursive_absolute(media_dir), OK)
@@ -274,7 +276,7 @@ func test_normalize_request_matches_environment_core_validator() -> void:
 
 func test_workout_yaml_bridge_translates_to_generic_request_shape() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
-	var result := bridge.build_request_from_workout_yaml(ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image/workout.yaml"), {
+	var result := bridge.build_request_from_workout_yaml(ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH), {
 		"request_id": "yaml-bridge-test",
 		"display_mode": "contain",
 		"metadata": {"from_test": true},
@@ -371,7 +373,7 @@ func test_load_environment_from_workout_yaml_emits_progress_and_success() -> voi
 	manager.environment_load_progress.connect(func(progress: Dictionary) -> void:
 		progress_events.append(progress)
 	)
-	manager.load_environment_from_workout_yaml("res://fixtures/workout_yaml_valid_image/workout.yaml", {
+	manager.load_environment_from_workout_yaml(FIXTURE_WORKOUT_YAML_PATH, {
 		"request_id": "workout-image-load",
 		"display_mode": "contain",
 	})
@@ -439,9 +441,55 @@ func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
 	await get_tree().process_frame
 
+func test_absolute_workout_package_can_switch_media_type_per_set() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var workout_path := String(package_copy.get("workout_path", ""))
+	var expected := {
+		"ab-set-image-demo-round": {
+			"kind": "image",
+			"asset_path": String(package_copy.get("image_asset_path", "")),
+		},
+		"ab-set-video-demo-round": {
+			"kind": "video",
+			"asset_path": String(package_copy.get("video_asset_path", "")),
+		},
+		"ab-set-glb-demo-round": {
+			"kind": "glb",
+			"asset_path": String(package_copy.get("glb_asset_path", "")),
+		},
+		"ab-set-splat-demo-round": {
+			"kind": "splat",
+			"asset_path": String(package_copy.get("splat_asset_path", "")),
+		},
+	}
+	var inspection := bridge.inspect_workout_package(workout_path)
+	assert_true(inspection.get("ok", false))
+	var set_order: Array = inspection.get("set_order", [])
+	assert_eq(set_order, [
+		"ab-set-image-demo-round",
+		"ab-set-video-demo-round",
+		"ab-set-glb-demo-round",
+		"ab-set-splat-demo-round",
+	])
+	for set_id in set_order:
+		var result := bridge.build_request_from_workout_set(workout_path, String(set_id), {
+			"request_id": "switch-%s" % String(set_id),
+			"display_mode": "contain",
+		})
+		assert_true(result.get("ok", false))
+		var request: Dictionary = result.get("request", {})
+		var metadata := Dictionary(request.get("metadata", {}))
+		var expected_case := Dictionary(expected.get(String(set_id), {}))
+		assert_eq(request.get("kind", ""), expected_case.get("kind", ""))
+		assert_eq(request.get("asset_path", ""), expected_case.get("asset_path", ""))
+		assert_eq(request.get("display_mode", ""), "contain")
+		assert_eq(metadata.get("set_id", ""), String(set_id))
+		assert_eq(metadata.get("workout_path", ""), workout_path)
+
 func test_committed_workout_fixture_covers_all_supported_environment_kinds() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
-	var result := bridge.inspect_workout_package(ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image/workout.yaml"))
+	var result := bridge.inspect_workout_package(ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH))
 	assert_true(result.get("ok", false))
 	assert_eq(result.get("workout_id", ""), "ab-workout-environment-stack-demo")
 	assert_eq(result.get("workout_name", ""), "Environment Stack Demo Workout")
