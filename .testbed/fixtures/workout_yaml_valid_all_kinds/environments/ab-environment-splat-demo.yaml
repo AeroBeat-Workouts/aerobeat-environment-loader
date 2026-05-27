@@ -4,4 +4,4 @@ recordVersion: 1
 environmentId: ab-environment-splat-demo
 environmentName: Gaussian Splat Demo Environment
 type: splat
-resourcePath: ../../assets/splats/CountrySide farm.json
+resourcePath: ../../assets/splats/CountrySide farm.compressed.ply

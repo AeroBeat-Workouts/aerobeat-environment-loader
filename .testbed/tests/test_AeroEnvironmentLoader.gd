@@ -55,6 +55,21 @@ func _copy_fixture_file(source_absolute: String, target_absolute: String) -> voi
 	write_handle.store_buffer(bytes)
 	write_handle.close()
 
+func _write_tiny_splat_fixture(target_absolute: String) -> void:
+	var write_handle := FileAccess.open(target_absolute, FileAccess.WRITE)
+	assert_not_null(write_handle)
+	write_handle.store_string("\n".join([
+		"ply",
+		"format binary_little_endian 1.0",
+		"comment Tiny placeholder proving fixture for workout-package splat seam",
+		"element vertex 0",
+		"property float x",
+		"property float y",
+		"property float z",
+		"end_header",
+	]) + "\n")
+	write_handle.close()
+
 func _copy_fixture_directory_recursive(source_absolute: String, target_absolute: String) -> void:
 	assert_eq(DirAccess.make_dir_recursive_absolute(target_absolute), OK)
 	var dir := DirAccess.open(source_absolute)
@@ -85,12 +100,14 @@ func _copy_workout_fixture_package_to_temp() -> Dictionary:
 	var video_asset_path := media_dir.path_join("calm_blue_sea_1.ogv")
 	var glb_asset_path := media_dir.path_join("alien-planet.glb")
 	var glb_config_path := media_dir.path_join("alien-planet.json")
-	var splat_asset_path := media_dir.path_join("countryside-farm.json")
+	var splat_asset_path := media_dir.path_join("countryside-farm.compressed.ply")
+	var splat_config_path := media_dir.path_join("countryside-farm.json")
 	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/images/perfect-hue-may-14-2026.png"), image_asset_path)
 	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/videos/calm_blue_sea_1.ogv"), video_asset_path)
 	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/models/alien-planet.glb"), glb_asset_path)
 	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/models/alien-planet.json"), glb_config_path)
-	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/splats/CountrySide farm.json"), splat_asset_path)
+	_write_tiny_splat_fixture(splat_asset_path)
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/splats/CountrySide farm.json"), splat_config_path)
 
 	var environment_image_file := FileAccess.open(package_dir.path_join("environments/ab-environment-image-demo.yaml"), FileAccess.WRITE)
 	assert_not_null(environment_image_file)
@@ -140,7 +157,7 @@ func _copy_workout_fixture_package_to_temp() -> Dictionary:
 		"environmentId: ab-environment-splat-demo",
 		"environmentName: Gaussian Splat Demo Environment",
 		"type: splat",
-		"resourcePath: media/environments/countryside-farm.json",
+		"resourcePath: media/environments/countryside-farm.compressed.ply",
 	]))
 	environment_splat_file.close()
 
@@ -152,6 +169,7 @@ func _copy_workout_fixture_package_to_temp() -> Dictionary:
 		"glb_asset_path": glb_asset_path,
 		"glb_config_path": glb_config_path,
 		"splat_asset_path": splat_asset_path,
+		"splat_config_path": splat_config_path,
 	}
 
 func _make_multi_set_workout_package() -> Dictionary:
@@ -441,6 +459,32 @@ func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
 	await get_tree().process_frame
 
+func test_load_environment_from_absolute_workout_set_splat_succeeds() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	manager.load_environment_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-splat-demo-round", {
+		"request_id": "workout-splat-load-absolute",
+		"display_mode": "contain",
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("request_id", ""), "workout-splat-load-absolute")
+	assert_eq(result.get("kind", ""), "splat")
+	assert_eq(result.get("format", ""), ".compressed.ply")
+	assert_eq(result.get("asset_path", ""), String(package_copy.get("splat_asset_path", "")))
+	assert_eq(result.get("config_path", ""), String(package_copy.get("splat_config_path", "")))
+	assert_true(result.get("config_applied", false))
+	assert_eq((setup["world_root"] as Node3D).get_child_count(), 1)
+	var node := (setup["world_root"] as Node3D).get_child(0) as Node3D
+	assert_not_null(node)
+	assert_eq(node.name, "EnvironmentSplat")
+	assert_almost_eq(node.position.y, -1.0, 0.001)
+	assert_true(int(result.get("point_count", 0)) >= 1)
+	var metadata := Dictionary(result.get("metadata", {}))
+	assert_eq(metadata.get("set_id", ""), "ab-set-splat-demo-round")
+	await get_tree().process_frame
+
 func test_absolute_workout_package_can_switch_media_type_per_set() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
 	var package_copy := _copy_workout_fixture_package_to_temp()
@@ -509,7 +553,7 @@ func test_committed_workout_fixture_covers_all_supported_environment_kinds() -> 
 	assert_true(String(Dictionary(sets[0]).get("asset_path", "")).ends_with("assets/images/perfect-hue-may-14-2026.png"))
 	assert_true(String(Dictionary(sets[1]).get("asset_path", "")).ends_with("assets/videos/calm_blue_sea_1.ogv"))
 	assert_true(String(Dictionary(sets[2]).get("asset_path", "")).ends_with("assets/models/alien-planet.glb"))
-	assert_true(String(Dictionary(sets[3]).get("asset_path", "")).ends_with("assets/splats/CountrySide farm.json"))
+	assert_true(String(Dictionary(sets[3]).get("asset_path", "")).ends_with("assets/splats/CountrySide farm.compressed.ply"))
 
 func test_external_workout_package_copy_materializes_local_media_references() -> void:
 	var package_copy := _copy_workout_fixture_package_to_temp()
@@ -518,12 +562,13 @@ func test_external_workout_package_copy_materializes_local_media_references() ->
 	assert_true(FileAccess.file_exists(String(package_copy.get("glb_asset_path", ""))))
 	assert_true(FileAccess.file_exists(String(package_copy.get("glb_config_path", ""))))
 	assert_true(FileAccess.file_exists(String(package_copy.get("splat_asset_path", ""))))
+	assert_true(FileAccess.file_exists(String(package_copy.get("splat_config_path", ""))))
 	var video_environment_text := FileAccess.get_file_as_string(String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-video-demo.yaml"))
 	var glb_environment_text := FileAccess.get_file_as_string(String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-glb-demo.yaml"))
 	var splat_environment_text := FileAccess.get_file_as_string(String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-splat-demo.yaml"))
 	assert_true(video_environment_text.contains("resourcePath: media/environments/calm_blue_sea_1.ogv"))
 	assert_true(glb_environment_text.contains("resourcePath: media/environments/alien-planet.glb"))
-	assert_true(splat_environment_text.contains("resourcePath: media/environments/countryside-farm.json"))
+	assert_true(splat_environment_text.contains("resourcePath: media/environments/countryside-farm.compressed.ply"))
 
 func test_load_environment_applies_glb_sidecar_config() -> void:
 	var setup := _make_manager()
