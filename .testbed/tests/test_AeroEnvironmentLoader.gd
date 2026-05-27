@@ -77,10 +77,79 @@ func _copy_workout_fixture_package_to_temp() -> Dictionary:
 	var package_dir := "/tmp/aerobeat-environment-loader-workout-%s" % suffix
 	var source_dir := ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image")
 	_copy_fixture_directory_recursive(source_dir, package_dir)
+	var media_dir := package_dir.path_join("media/environments")
+	assert_eq(DirAccess.make_dir_recursive_absolute(media_dir), OK)
+	var image_asset_path := media_dir.path_join("demo.png")
+	var video_asset_path := media_dir.path_join("calm_blue_sea_1.ogv")
+	var glb_asset_path := media_dir.path_join("alien-planet.glb")
+	var glb_config_path := media_dir.path_join("alien-planet.json")
+	var splat_asset_path := media_dir.path_join("countryside-farm.json")
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/images/perfect-hue-may-14-2026.png"), image_asset_path)
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/videos/calm_blue_sea_1.ogv"), video_asset_path)
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/models/alien-planet.glb"), glb_asset_path)
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/models/alien-planet.json"), glb_config_path)
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/splats/CountrySide farm.json"), splat_asset_path)
+
+	var environment_image_file := FileAccess.open(package_dir.path_join("environments/ab-environment-image-demo.yaml"), FileAccess.WRITE)
+	assert_not_null(environment_image_file)
+	environment_image_file.store_string("\n".join([
+		"schemaId: aerobeat.environment.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"environmentId: ab-environment-image-demo",
+		"environmentName: Image Demo Environment",
+		"type: image_background",
+		"resourcePath: media/environments/demo.png",
+	]))
+	environment_image_file.close()
+
+	var environment_video_file := FileAccess.open(package_dir.path_join("environments/ab-environment-video-demo.yaml"), FileAccess.WRITE)
+	assert_not_null(environment_video_file)
+	environment_video_file.store_string("\n".join([
+		"schemaId: aerobeat.environment.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"environmentId: ab-environment-video-demo",
+		"environmentName: Video Demo Environment",
+		"type: video_background",
+		"resourcePath: media/environments/calm_blue_sea_1.ogv",
+	]))
+	environment_video_file.close()
+
+	var environment_glb_file := FileAccess.open(package_dir.path_join("environments/ab-environment-glb-demo.yaml"), FileAccess.WRITE)
+	assert_not_null(environment_glb_file)
+	environment_glb_file.store_string("\n".join([
+		"schemaId: aerobeat.environment.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"environmentId: ab-environment-glb-demo",
+		"environmentName: GLB Demo Environment",
+		"type: glb_environment",
+		"resourcePath: media/environments/alien-planet.glb",
+	]))
+	environment_glb_file.close()
+
+	var environment_splat_file := FileAccess.open(package_dir.path_join("environments/ab-environment-splat-demo.yaml"), FileAccess.WRITE)
+	assert_not_null(environment_splat_file)
+	environment_splat_file.store_string("\n".join([
+		"schemaId: aerobeat.environment.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"environmentId: ab-environment-splat-demo",
+		"environmentName: Gaussian Splat Demo Environment",
+		"type: splat",
+		"resourcePath: media/environments/countryside-farm.json",
+	]))
+	environment_splat_file.close()
+
 	return {
 		"package_dir": package_dir,
 		"workout_path": package_dir.path_join("workout.yaml"),
-		"asset_path": package_dir.path_join("media/environments/demo.png"),
+		"image_asset_path": image_asset_path,
+		"video_asset_path": video_asset_path,
+		"glb_asset_path": glb_asset_path,
+		"glb_config_path": glb_config_path,
+		"splat_asset_path": splat_asset_path,
 	}
 
 func _make_multi_set_workout_package() -> Dictionary:
@@ -119,11 +188,14 @@ func _make_multi_set_workout_package() -> Dictionary:
 		"schemaId: aerobeat.workout-package.v1",
 		"schemaVersion: 1",
 		"recordVersion: 1",
-		"workoutId: ab-workout-image-demo",
-		"workoutName: Image Demo Workout",
+		"workoutId: ab-workout-environment-stack-demo",
+		"workoutName: Environment Stack Demo Workout",
 		"packageVersion: 1.0.0",
 		"setOrder:",
 		"  - ab-set-image-demo-round",
+		"  - ab-set-video-demo-round",
+		"  - ab-set-glb-demo-round",
+		"  - ab-set-splat-demo-round",
 		"  - ab-set-image-demo-round-2",
 	]))
 	workout_file.close()
@@ -211,7 +283,7 @@ func test_workout_yaml_bridge_translates_to_generic_request_shape() -> void:
 	var request: Dictionary = result.get("request", {})
 	assert_eq(request.get("request_id", ""), "yaml-bridge-test")
 	assert_eq(request.get("kind", ""), "image")
-	assert_true(String(request.get("asset_path", "")).ends_with("demo.png"))
+	assert_true(String(request.get("asset_path", "")).ends_with("perfect-hue-may-14-2026.png"))
 	assert_eq(request.get("display_mode", ""), "contain")
 	assert_true(Dictionary(request.get("metadata", {})).get("from_test", false))
 	assert_eq(Dictionary(request.get("metadata", {})).get("source", ""), "workout_yaml")
@@ -231,7 +303,7 @@ func test_workout_yaml_bridge_accepts_absolute_workout_yaml_path() -> void:
 	var request: Dictionary = result.get("request", {})
 	assert_eq(request.get("request_id", ""), "yaml-bridge-absolute-workout")
 	assert_eq(request.get("kind", ""), "image")
-	assert_eq(request.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(request.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 	var metadata := Dictionary(request.get("metadata", {}))
 	assert_eq(metadata.get("package_dir", ""), String(package_copy.get("package_dir", "")))
 	assert_eq(metadata.get("workout_path", ""), workout_path)
@@ -249,7 +321,7 @@ func test_workout_yaml_bridge_accepts_absolute_package_directory_path() -> void:
 	var request: Dictionary = result.get("request", {})
 	assert_eq(request.get("request_id", ""), "yaml-bridge-absolute-package")
 	assert_eq(request.get("kind", ""), "image")
-	assert_eq(request.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(request.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 	var metadata := Dictionary(request.get("metadata", {}))
 	assert_eq(metadata.get("package_dir", ""), package_dir)
 	assert_eq(metadata.get("workout_path", ""), package_dir.path_join("workout.yaml"))
@@ -259,19 +331,19 @@ func test_inspect_workout_package_returns_manifest_for_each_set() -> void:
 	var package_copy := _make_multi_set_workout_package()
 	var result := bridge.inspect_workout_package(String(package_copy.get("workout_path", "")))
 	assert_true(result.get("ok", false))
-	assert_eq(result.get("workout_id", ""), "ab-workout-image-demo")
-	assert_eq(result.get("workout_name", ""), "Image Demo Workout")
+	assert_eq(result.get("workout_id", ""), "ab-workout-environment-stack-demo")
+	assert_eq(result.get("workout_name", ""), "Environment Stack Demo Workout")
 	var set_order: Array = result.get("set_order", [])
-	assert_eq(set_order.size(), 2)
-	assert_eq(String(set_order[1]), "ab-set-image-demo-round-2")
+	assert_eq(set_order.size(), 5)
+	assert_eq(String(set_order[1]), "ab-set-video-demo-round")
 	var sets: Array = result.get("sets", [])
-	assert_eq(sets.size(), 2)
-	var second_set := Dictionary(sets[1])
+	assert_eq(sets.size(), 5)
+	var second_set := Dictionary(sets[4])
 	assert_eq(second_set.get("set_id", ""), "ab-set-image-demo-round-2")
 	assert_eq(second_set.get("set_name", ""), "Image Demo Round Two")
 	assert_eq(second_set.get("kind", ""), "image")
 	assert_eq(second_set.get("environment_id", ""), "ab-environment-image-demo-2")
-	assert_eq(second_set.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(second_set.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 
 func test_workout_yaml_bridge_builds_request_for_specific_set() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
@@ -284,12 +356,12 @@ func test_workout_yaml_bridge_builds_request_for_specific_set() -> void:
 	var request: Dictionary = result.get("request", {})
 	assert_eq(request.get("request_id", ""), "yaml-bridge-second-set")
 	assert_eq(request.get("kind", ""), "image")
-	assert_eq(request.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(request.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 	var metadata := Dictionary(request.get("metadata", {}))
 	assert_eq(metadata.get("source", ""), "workout_yaml")
 	assert_eq(metadata.get("set_id", ""), "ab-set-image-demo-round-2")
 	assert_eq(metadata.get("set_name", ""), "Image Demo Round Two")
-	assert_eq(int(metadata.get("set_index", -1)), 1)
+	assert_eq(int(metadata.get("set_index", -1)), 4)
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
 
 func test_load_environment_from_workout_yaml_emits_progress_and_success() -> void:
@@ -341,7 +413,7 @@ func test_load_environment_from_absolute_workout_yaml_path_succeeds() -> void:
 	assert_true(result.get("ok", false))
 	assert_eq(result.get("request_id", ""), "workout-image-load-absolute")
 	assert_eq(result.get("kind", ""), "image")
-	assert_eq(result.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(result.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 	assert_eq(Dictionary(result.get("metadata", {})).get("package_dir", ""), String(package_copy.get("package_dir", "")))
 	assert_eq(Dictionary(result.get("metadata", {})).get("workout_path", ""), String(package_copy.get("workout_path", "")))
 	assert_eq(Dictionary(result.get("metadata", {})).get("source", ""), "workout_yaml")
@@ -359,13 +431,51 @@ func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void
 	assert_true(result.get("ok", false))
 	assert_eq(result.get("request_id", ""), "workout-image-load-second-set")
 	assert_eq(result.get("kind", ""), "image")
-	assert_eq(result.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	assert_eq(result.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 	var metadata := Dictionary(result.get("metadata", {}))
 	assert_eq(metadata.get("set_id", ""), "ab-set-image-demo-round-2")
 	assert_eq(metadata.get("set_name", ""), "Image Demo Round Two")
-	assert_eq(int(metadata.get("set_index", -1)), 1)
+	assert_eq(int(metadata.get("set_index", -1)), 4)
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
 	await get_tree().process_frame
+
+func test_committed_workout_fixture_covers_all_supported_environment_kinds() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var result := bridge.inspect_workout_package(ProjectSettings.globalize_path("res://fixtures/workout_yaml_valid_image/workout.yaml"))
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("workout_id", ""), "ab-workout-environment-stack-demo")
+	assert_eq(result.get("workout_name", ""), "Environment Stack Demo Workout")
+	var set_order: Array = result.get("set_order", [])
+	assert_eq(set_order, [
+		"ab-set-image-demo-round",
+		"ab-set-video-demo-round",
+		"ab-set-glb-demo-round",
+		"ab-set-splat-demo-round",
+	])
+	var sets: Array = result.get("sets", [])
+	assert_eq(sets.size(), 4)
+	assert_eq(Dictionary(sets[0]).get("kind", ""), "image")
+	assert_eq(Dictionary(sets[1]).get("kind", ""), "video")
+	assert_eq(Dictionary(sets[2]).get("kind", ""), "glb")
+	assert_eq(Dictionary(sets[3]).get("kind", ""), "splat")
+	assert_true(String(Dictionary(sets[0]).get("asset_path", "")).ends_with("assets/images/perfect-hue-may-14-2026.png"))
+	assert_true(String(Dictionary(sets[1]).get("asset_path", "")).ends_with("assets/videos/calm_blue_sea_1.ogv"))
+	assert_true(String(Dictionary(sets[2]).get("asset_path", "")).ends_with("assets/models/alien-planet.glb"))
+	assert_true(String(Dictionary(sets[3]).get("asset_path", "")).ends_with("assets/splats/CountrySide farm.json"))
+
+func test_external_workout_package_copy_materializes_local_media_references() -> void:
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	assert_true(FileAccess.file_exists(String(package_copy.get("image_asset_path", ""))))
+	assert_true(FileAccess.file_exists(String(package_copy.get("video_asset_path", ""))))
+	assert_true(FileAccess.file_exists(String(package_copy.get("glb_asset_path", ""))))
+	assert_true(FileAccess.file_exists(String(package_copy.get("glb_config_path", ""))))
+	assert_true(FileAccess.file_exists(String(package_copy.get("splat_asset_path", ""))))
+	var video_environment_text := FileAccess.get_file_as_string(String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-video-demo.yaml"))
+	var glb_environment_text := FileAccess.get_file_as_string(String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-glb-demo.yaml"))
+	var splat_environment_text := FileAccess.get_file_as_string(String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-splat-demo.yaml"))
+	assert_true(video_environment_text.contains("resourcePath: media/environments/calm_blue_sea_1.ogv"))
+	assert_true(glb_environment_text.contains("resourcePath: media/environments/alien-planet.glb"))
+	assert_true(splat_environment_text.contains("resourcePath: media/environments/countryside-farm.json"))
 
 func test_load_environment_applies_glb_sidecar_config() -> void:
 	var setup := _make_manager()

@@ -4,4 +4,4 @@ recordVersion: 1
 environmentId: ab-environment-image-demo
 environmentName: Image Demo Environment
 type: image_background
-resourcePath: media/environments/demo.png
+resourcePath: ../../assets/images/perfect-hue-may-14-2026.png

@@ -1,0 +1,6 @@
+schemaId: aerobeat.set.v1
+schemaVersion: 1
+recordVersion: 1
+setId: ab-set-splat-demo-round
+setName: Gaussian Splat Demo Round
+environmentId: ab-environment-splat-demo

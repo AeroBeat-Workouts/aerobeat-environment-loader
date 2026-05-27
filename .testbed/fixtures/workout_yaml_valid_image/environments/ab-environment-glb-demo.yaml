@@ -1,0 +1,7 @@
+schemaId: aerobeat.environment.v1
+schemaVersion: 1
+recordVersion: 1
+environmentId: ab-environment-glb-demo
+environmentName: GLB Demo Environment
+type: glb_environment
+resourcePath: ../../assets/models/alien-planet.glb

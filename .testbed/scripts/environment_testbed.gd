@@ -1,6 +1,5 @@
 extends Node
 
-const EXTERNAL_WORKOUT_EXAMPLE_PATH := "/home/derrick/Documents/temp/test-workout/workout.yaml"
 const FIXTURE_WORKOUT_YAML_PATH := "res://fixtures/workout_yaml_valid_image/workout.yaml"
 
 @onready var environment_loader = $AeroEnvironmentLoader
@@ -30,16 +29,14 @@ func _ready() -> void:
 	workout_yaml_edit.placeholder_text = "Absolute package dir or workout.yaml path"
 	_append_status("Workout package testbed ready.")
 	_append_status("Load Workout reads a package-root workout.yaml from res:// or an arbitrary absolute path.")
-	_append_status("Example external path: %s" % EXTERNAL_WORKOUT_EXAMPLE_PATH)
+	_append_status("Committed stack fixture: %s" % ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH))
 	_refresh_workout_ui()
 
 func _default_workout_entry_path() -> String:
-	if FileAccess.file_exists(EXTERNAL_WORKOUT_EXAMPLE_PATH):
-		return EXTERNAL_WORKOUT_EXAMPLE_PATH
 	var fixture_absolute := ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH)
 	if FileAccess.file_exists(fixture_absolute):
 		return fixture_absolute
-	return EXTERNAL_WORKOUT_EXAMPLE_PATH
+	return FIXTURE_WORKOUT_YAML_PATH
 
 func _selected_display_mode() -> String:
 	return "contain" if display_mode_option.selected == 1 else "cover"

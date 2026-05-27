@@ -107,6 +107,12 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
 - Repo-local tests validate both the current loader behavior and that the loader stays coherent with
   the core-owned contract subtree while routing GLB loads through `AeroGLTFTool` and video loads through
   `AeroVideoPlayerManager` without exposing vendor-specific runtime details to loader consumers.
+- The hidden testbed now ships a committed workout-package fixture at
+  `.testbed/fixtures/workout_yaml_valid_image/workout.yaml` with one set each for image, video, GLB,
+  and gaussian splat. The committed YAML stays lightweight by pointing at shared `/.testbed/assets/`
+  fixtures through relative paths, and repo-local tests also copy that package to `/tmp`, materialize
+  local media payloads under the copied package root, and load the copied `workout.yaml` by absolute
+  path to prove external-path loading semantics.
 - Preserve the compatibility surface first: loader callers can keep using dictionary requests/signals
   even though the internal contract truth now lives in `aerobeat-environment-core` and video playback
   now routes through the shared sibling packages.
