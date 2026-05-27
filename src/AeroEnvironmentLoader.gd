@@ -163,6 +163,31 @@ func _ready() -> void:
 	_bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
 	_ensure_roots()
 
+func _ensure_bridge() -> RefCounted:
+	if _bridge == null:
+		_bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	return _bridge
+
+func _load_environment_from_workout_bridge_result(yaml_path: String, context: Dictionary, bridge_result: Dictionary) -> void:
+	if not bridge_result.get("ok", false):
+		var request := {
+			"request_id": String(context.get("request_id", "")).strip_edges(),
+			"kind": "",
+			"asset_path": yaml_path.strip_edges(),
+			"config_path": String(context.get("config_path", "")).strip_edges(),
+			"display_mode": String(context.get("display_mode", DISPLAY_MODE_COVER)).strip_edges(),
+			"context": context.duplicate(true),
+			"metadata": Dictionary(context.get("metadata", {})) if context.get("metadata", {}) is Dictionary else {},
+		}
+		_emit_failure(
+			request,
+			String(bridge_result.get("error_code", ERROR_INVALID_REQUEST)),
+			String(bridge_result.get("message", "Workout YAML bridge failed.")),
+			bool(bridge_result.get("recoverable", true))
+		)
+		return
+	load_environment(Dictionary(bridge_result.get("request", {})))
+
 func load_environment(request: Dictionary) -> void:
 	if not is_active:
 		_emit_failure(_request_stub(request), ERROR_LOADER_FAILED, "AeroEnvironmentLoader is inactive.", true)
@@ -183,28 +208,16 @@ func load_environment(request: Dictionary) -> void:
 	_emit_progress(_active_request, STATUS_RESOLVING, 0.0, "Resolving environment request...")
 	call_deferred("_perform_load", _active_request.duplicate(true))
 
-func load_environment_from_workout_yaml(yaml_path: String, context: Dictionary = {}) -> void:
+func inspect_workout_package(yaml_path: String) -> Dictionary:
 	if _bridge == null:
 		_bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
-	var bridge_result: Dictionary = _bridge.build_request_from_workout_yaml(yaml_path, context)
-	if not bridge_result.get("ok", false):
-		var request := {
-			"request_id": String(context.get("request_id", "")).strip_edges(),
-			"kind": "",
-			"asset_path": yaml_path.strip_edges(),
-			"config_path": String(context.get("config_path", "")).strip_edges(),
-			"display_mode": String(context.get("display_mode", DISPLAY_MODE_COVER)).strip_edges(),
-			"context": context.duplicate(true),
-			"metadata": Dictionary(context.get("metadata", {})) if context.get("metadata", {}) is Dictionary else {},
-		}
-		_emit_failure(
-			request,
-			String(bridge_result.get("error_code", ERROR_INVALID_REQUEST)),
-			String(bridge_result.get("message", "Workout YAML bridge failed.")),
-			bool(bridge_result.get("recoverable", true))
-		)
-		return
-	load_environment(Dictionary(bridge_result.get("request", {})))
+	return _bridge.inspect_workout_package(yaml_path)
+
+func load_environment_from_workout_yaml(yaml_path: String, context: Dictionary = {}) -> void:
+	_load_environment_from_workout_bridge_result(yaml_path, context, _ensure_bridge().build_request_from_workout_yaml(yaml_path, context))
+
+func load_environment_from_workout_set(yaml_path: String, set_reference: Variant, context: Dictionary = {}) -> void:
+	_load_environment_from_workout_bridge_result(yaml_path, context, _ensure_bridge().build_request_from_workout_set(yaml_path, set_reference, context))
 
 func clear_environment() -> void:
 	_clear_current_environment(true)

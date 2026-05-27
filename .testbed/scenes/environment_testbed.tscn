@@ -46,8 +46,8 @@ mouse_filter = 2
 [node name="Panel" type="Panel" parent="CanvasLayer/Ui"]
 offset_left = 24.0
 offset_top = 24.0
-offset_right = 474.0
-offset_bottom = 700.0
+offset_right = 500.0
+offset_bottom = 760.0
 
 [node name="Margin" type="MarginContainer" parent="CanvasLayer/Ui/Panel"]
 anchors_preset = 15
@@ -67,70 +67,82 @@ offset_bottom = 0.0
 size_flags_vertical = 3
 
 [node name="Title" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-text = "AeroBeat Environment Loader Testbed"
+text = "AeroBeat Workout Package Testbed"
 
 [node name="Hint" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-text = "Hidden proving surface for .png, .ogv, .glb, .compressed.ply, and workout package paths. Workout input accepts an absolute package directory or an absolute workout.yaml outside res://."
+autowrap_mode = 3
+text = "Hidden workout-package proving surface for image, video, GLB, and gaussian-splat environments. Load a package-root workout.yaml from res:// or an arbitrary absolute filesystem path, then use the generated set buttons to route loads through the repo-level environment loader abstractions."
+
+[node name="CurrentWorkoutLabel" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+unique_name_in_owner = true
+text = "Current workout: (none)"
 autowrap_mode = 3
 
 [node name="CurrentPathLabel" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+unique_name_in_owner = true
 text = "Current asset: (none)"
 autowrap_mode = 3
 
 [node name="DisplayModeOption" type="OptionButton" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+unique_name_in_owner = true
 item_count = 2
 selected = 0
 popup/item_0/text = "cover"
 popup/item_1/text = "contain"
 
-[node name="AssetPathEdit" type="LineEdit" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-placeholder_text = "Asset path"
-
-[node name="ConfigPathEdit" type="LineEdit" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-placeholder_text = "Config path (GLB/splat sidecar)"
-
 [node name="WorkoutYamlEdit" type="LineEdit" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+unique_name_in_owner = true
 placeholder_text = "Absolute package dir or workout.yaml path"
 
-[node name="ButtonRowOne" type="HBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+[node name="WorkoutButtonsRow" type="HBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 
-[node name="LoadImageButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne"]
-text = "Load PNG"
+[node name="PickWorkoutButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/WorkoutButtonsRow"]
+text = "Pick workout.yaml"
 
-[node name="LoadVideoButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne"]
-text = "Load OGV"
+[node name="LoadWorkoutButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/WorkoutButtonsRow"]
+text = "Load Workout"
 
-[node name="LoadGlbButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne"]
-text = "Load GLB"
+[node name="UnloadWorkoutButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/WorkoutButtonsRow"]
+unique_name_in_owner = true
+disabled = true
+text = "Unload Workout"
 
-[node name="LoadSplatButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne"]
-text = "Load Splat"
+[node name="SetButtonsLabel" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+text = "Generated set controls"
 
-[node name="ButtonRowTwo" type="HBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+[node name="SetButtonsContainer" type="VBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+unique_name_in_owner = true
+size_flags_horizontal = 3
 
-[node name="LoadWorkoutYamlButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo"]
-text = "Load package / workout.yaml"
+[node name="ConfigPathEdit" type="LineEdit" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+unique_name_in_owner = true
+placeholder_text = "Optional config path override for reload/save"
 
-[node name="ApplyCurrentConfigButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo"]
+[node name="ConfigButtonsRow" type="HBoxContainer" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
+
+[node name="ApplyCurrentConfigButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ConfigButtonsRow"]
 text = "Reload w/ config"
 
-[node name="SaveCurrentConfigButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo"]
+[node name="SaveCurrentConfigButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ConfigButtonsRow"]
 text = "Save current config"
 
-[node name="ClearButton" type="Button" parent="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo"]
-text = "Clear"
-
 [node name="StatusLog" type="RichTextLabel" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-custom_minimum_size = Vector2(0, 300)
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 320)
 size_flags_vertical = 3
 bbcode_enabled = false
 scroll_following = true
 
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne/LoadImageButton" to="." method="_on_load_image_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne/LoadVideoButton" to="." method="_on_load_video_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne/LoadGlbButton" to="." method="_on_load_glb_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowOne/LoadSplatButton" to="." method="_on_load_splat_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo/LoadWorkoutYamlButton" to="." method="_on_load_from_workout_yaml_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo/ApplyCurrentConfigButton" to="." method="_on_apply_current_config_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo/SaveCurrentConfigButton" to="." method="_on_save_current_config_pressed"]
-[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ButtonRowTwo/ClearButton" to="." method="_on_clear_pressed"]
+[node name="WorkoutFileDialog" type="FileDialog" parent="."]
+unique_name_in_owner = true
+visible = false
+file_mode = 0
+access = 2
+filters = PackedStringArray("workout.yaml ; Workout package root", "*.yaml ; YAML", "*.yml ; YAML")
+
+[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/WorkoutButtonsRow/PickWorkoutButton" to="." method="_on_pick_workout_pressed"]
+[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/WorkoutButtonsRow/LoadWorkoutButton" to="." method="_on_load_workout_pressed"]
+[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/WorkoutButtonsRow/UnloadWorkoutButton" to="." method="_on_unload_workout_pressed"]
+[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ConfigButtonsRow/ApplyCurrentConfigButton" to="." method="_on_apply_current_config_pressed"]
+[connection signal="pressed" from="CanvasLayer/Ui/Panel/Margin/VBox/ConfigButtonsRow/SaveCurrentConfigButton" to="." method="_on_save_current_config_pressed"]
+[connection signal="file_selected" from="WorkoutFileDialog" to="." method="_on_workout_file_dialog_file_selected"]

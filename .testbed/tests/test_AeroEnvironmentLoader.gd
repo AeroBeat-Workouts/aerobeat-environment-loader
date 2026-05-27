@@ -83,6 +83,52 @@ func _copy_workout_fixture_package_to_temp() -> Dictionary:
 		"asset_path": package_dir.path_join("media/environments/demo.png"),
 	}
 
+func _make_multi_set_workout_package() -> Dictionary:
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var package_dir := String(package_copy.get("package_dir", ""))
+	var second_environment_path := package_dir.path_join("environments/ab-environment-image-demo-2.yaml")
+	var second_environment_file := FileAccess.open(second_environment_path, FileAccess.WRITE)
+	assert_not_null(second_environment_file)
+	second_environment_file.store_string("\n".join([
+		"schemaId: aerobeat.environment.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"environmentId: ab-environment-image-demo-2",
+		"environmentName: Image Demo Environment Two",
+		"type: image_background",
+		"resourcePath: media/environments/demo.png",
+	]))
+	second_environment_file.close()
+
+	var second_set_path := package_dir.path_join("sets/ab-set-image-demo-round-2.yaml")
+	var second_set_file := FileAccess.open(second_set_path, FileAccess.WRITE)
+	assert_not_null(second_set_file)
+	second_set_file.store_string("\n".join([
+		"schemaId: aerobeat.set.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"setId: ab-set-image-demo-round-2",
+		"setName: Image Demo Round Two",
+		"environmentId: ab-environment-image-demo-2",
+	]))
+	second_set_file.close()
+
+	var workout_file := FileAccess.open(String(package_copy.get("workout_path", "")), FileAccess.WRITE)
+	assert_not_null(workout_file)
+	workout_file.store_string("\n".join([
+		"schemaId: aerobeat.workout-package.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"workoutId: ab-workout-image-demo",
+		"workoutName: Image Demo Workout",
+		"packageVersion: 1.0.0",
+		"setOrder:",
+		"  - ab-set-image-demo-round",
+		"  - ab-set-image-demo-round-2",
+	]))
+	workout_file.close()
+	return package_copy
+
 func test_loader_exports_renamed_environment_identity() -> void:
 	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var script: Script = manager.get_script()
@@ -208,6 +254,44 @@ func test_workout_yaml_bridge_accepts_absolute_package_directory_path() -> void:
 	assert_eq(metadata.get("package_dir", ""), package_dir)
 	assert_eq(metadata.get("workout_path", ""), package_dir.path_join("workout.yaml"))
 
+func test_inspect_workout_package_returns_manifest_for_each_set() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _make_multi_set_workout_package()
+	var result := bridge.inspect_workout_package(String(package_copy.get("workout_path", "")))
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("workout_id", ""), "ab-workout-image-demo")
+	assert_eq(result.get("workout_name", ""), "Image Demo Workout")
+	var set_order: Array = result.get("set_order", [])
+	assert_eq(set_order.size(), 2)
+	assert_eq(String(set_order[1]), "ab-set-image-demo-round-2")
+	var sets: Array = result.get("sets", [])
+	assert_eq(sets.size(), 2)
+	var second_set := Dictionary(sets[1])
+	assert_eq(second_set.get("set_id", ""), "ab-set-image-demo-round-2")
+	assert_eq(second_set.get("set_name", ""), "Image Demo Round Two")
+	assert_eq(second_set.get("kind", ""), "image")
+	assert_eq(second_set.get("environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(second_set.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+
+func test_workout_yaml_bridge_builds_request_for_specific_set() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _make_multi_set_workout_package()
+	var result := bridge.build_request_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-image-demo-round-2", {
+		"request_id": "yaml-bridge-second-set",
+		"metadata": {"source": "test"},
+	})
+	assert_true(result.get("ok", false))
+	var request: Dictionary = result.get("request", {})
+	assert_eq(request.get("request_id", ""), "yaml-bridge-second-set")
+	assert_eq(request.get("kind", ""), "image")
+	assert_eq(request.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	var metadata := Dictionary(request.get("metadata", {}))
+	assert_eq(metadata.get("source", ""), "workout_yaml")
+	assert_eq(metadata.get("set_id", ""), "ab-set-image-demo-round-2")
+	assert_eq(metadata.get("set_name", ""), "Image Demo Round Two")
+	assert_eq(int(metadata.get("set_index", -1)), 1)
+	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
+
 func test_load_environment_from_workout_yaml_emits_progress_and_success() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]
@@ -261,6 +345,26 @@ func test_load_environment_from_absolute_workout_yaml_path_succeeds() -> void:
 	assert_eq(Dictionary(result.get("metadata", {})).get("package_dir", ""), String(package_copy.get("package_dir", "")))
 	assert_eq(Dictionary(result.get("metadata", {})).get("workout_path", ""), String(package_copy.get("workout_path", "")))
 	assert_eq(Dictionary(result.get("metadata", {})).get("source", ""), "workout_yaml")
+	await get_tree().process_frame
+
+func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	var package_copy := _make_multi_set_workout_package()
+	manager.load_environment_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-image-demo-round-2", {
+		"request_id": "workout-image-load-second-set",
+		"display_mode": "contain",
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("request_id", ""), "workout-image-load-second-set")
+	assert_eq(result.get("kind", ""), "image")
+	assert_eq(result.get("asset_path", ""), String(package_copy.get("asset_path", "")))
+	var metadata := Dictionary(result.get("metadata", {}))
+	assert_eq(metadata.get("set_id", ""), "ab-set-image-demo-round-2")
+	assert_eq(metadata.get("set_name", ""), "Image Demo Round Two")
+	assert_eq(int(metadata.get("set_index", -1)), 1)
+	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
 	await get_tree().process_frame
 
 func test_load_environment_applies_glb_sidecar_config() -> void:
