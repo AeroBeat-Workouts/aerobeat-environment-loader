@@ -107,7 +107,7 @@ class _AeroEnvironmentLoaderGLTFBackendAdapter:
 const VERSION: String = "0.2.0"
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironmentBridge.gd")
 const AERO_VIDEO_PLAYER_MANAGER_SCRIPT = preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")
-const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf/src/AeroGLTFTool.gd")
+const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFTool.gd")
 const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const AERO_ENVIRONMENT_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
 const AERO_ENVIRONMENT_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")

@@ -42,7 +42,7 @@ func test_addons_manifest_keeps_expected_dependencies_only() -> void:
 	assert_true(manifest_text.contains('"aerobeat-tool-core"'), "addons manifest should pin aerobeat-tool-core for the shared video contract")
 	assert_true(manifest_text.contains('"aerobeat-tool-video-player"'), "addons manifest should pin aerobeat-tool-video-player for the shared playback facade")
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-video"'), "addons manifest should pin aerobeat-vendor-godot-video for the Godot backend")
-	assert_true(manifest_text.contains('"aerobeat-tool-gltf"'), "addons manifest should pin aerobeat-tool-gltf for the shared GLTF facade")
+	assert_true(manifest_text.contains('"aerobeat-tool-gltf-loader"'), "addons manifest should pin aerobeat-tool-gltf-loader for the shared GLTF facade")
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-gltf"'), "addons manifest should pin aerobeat-vendor-godot-gltf for the GLTF runtime backend")
 	assert_true(manifest_text.contains('"gut"'), "addons manifest should pin gut for repo-local tests")
 	assert_false(manifest_text.contains('"aerobeat-core"'), "addons manifest should not reintroduce stale aerobeat-core drift")

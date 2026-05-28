@@ -35,7 +35,7 @@ content.
   - `aerobeat-tool-core` — shared video playback vocabulary consumed by the video stack
   - `aerobeat-tool-video-player` — stable `AeroVideoPlayerManager` playback facade for environment video fulfillment
   - `aerobeat-vendor-godot-video` — current default backend package that satisfies the shared video facade behind this repo
-  - `aerobeat-tool-gltf` — stable `AeroGLTFTool` scene-loading facade for GLB/GLTF environment fulfillment
+  - `aerobeat-tool-gltf-loader` — stable `AeroGLTFTool` scene-loading facade for GLB/GLTF environment fulfillment
   - `aerobeat-vendor-godot-gltf` — current default runtime backend package behind the shared GLTF facade
   - additional adjacent environment-family repos only when this loader intentionally composes them
 
@@ -62,7 +62,7 @@ From the repo root:
 ```
 
 That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, the loader
-manifest now includes `aerobeat-environment-core`, the shared GLTF stack (`aerobeat-tool-gltf`,
+manifest now includes `aerobeat-environment-core`, the shared GLTF stack (`aerobeat-tool-gltf-loader`,
 `aerobeat-vendor-godot-gltf`), the shared video stack (`aerobeat-tool-core`,
 `aerobeat-tool-video-player`, `aerobeat-vendor-godot-video`), and repo-local test tooling.
 

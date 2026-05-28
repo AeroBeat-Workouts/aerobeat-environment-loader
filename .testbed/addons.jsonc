@@ -1,6 +1,12 @@
 {
   "$schema": "https://chickensoft.games/schemas/addons.schema.json",
   "addons": {
+    // Install the repo local folder
+    "aerobeat-environment-loader": {
+        "url": "..",
+        "source": "symlink",
+        "subfolder": "/"
+    },
     // The loader consumes the shared environment contract package.
     // `main` is intentional until aerobeat-environment-core starts tagging releases.
     "aerobeat-environment-core": {
@@ -25,8 +31,8 @@
       "subfolder": "/"
     },
     // GLB loading now composes the shared GLTF tool facade plus its current vendor backend.
-    "aerobeat-tool-gltf": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-gltf.git",
+    "aerobeat-tool-gltf-loader": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-gltf-loader.git",
       "checkout": "main",
       "subfolder": "/"
     },

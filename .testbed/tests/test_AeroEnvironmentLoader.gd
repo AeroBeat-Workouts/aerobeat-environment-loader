@@ -2,7 +2,7 @@ extends GutTest
 
 const AERO_ENVIRONMENT_LOADER_SCRIPT = preload("res://../src/AeroEnvironmentLoader.gd")
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("res://../src/AeroWorkoutYamlEnvironmentBridge.gd")
-const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf/src/AeroGLTFTool.gd")
+const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFTool.gd")
 const CORE_CONSTANTS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const CORE_REQUEST_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_request.gd")
 const CORE_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
@@ -240,7 +240,7 @@ func test_loader_glb_stack_stays_on_shared_facade() -> void:
 	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var script: Script = manager.get_script()
 	var source_text := FileAccess.get_file_as_string(script.resource_path)
-	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-gltf/src/AeroGLTFTool.gd")'))
+	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFTool.gd")'))
 	assert_true(source_text.contains("load_scene({"))
 	assert_false(source_text.contains("PackedScene).instantiate()"))
 	manager.free()
