@@ -110,7 +110,7 @@ const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironme
 const SIMPLE_YAML_PARSER_SCRIPT = preload("AeroSimpleYamlParser.gd")
 const AERO_VIDEO_PLAYER_MANAGER_SCRIPT = preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")
 const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFLoader.gd")
-const AERO_DEVICE_DETECTION_SCRIPT = preload("res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd")
+const AERO_DEVICE_DETECTION_SCRIPT_PATH := "res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd"
 const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const AERO_ENVIRONMENT_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
 const AERO_ENVIRONMENT_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
@@ -366,10 +366,14 @@ func _ensure_device_detection_service() -> Node:
 		if singleton != null:
 			_device_detection_service = singleton
 			return _device_detection_service
-	if AERO_DEVICE_DETECTION_SCRIPT == null:
+	var detector_script: Variant = load(AERO_DEVICE_DETECTION_SCRIPT_PATH)
+	if detector_script == null:
 		return null
-	_device_detection_service = AERO_DEVICE_DETECTION_SCRIPT.new()
-	return _device_detection_service
+	var detector_instance: Variant = detector_script.new()
+	if detector_instance is Node:
+		_device_detection_service = detector_instance
+		return _device_detection_service
+	return null
 
 func _load_unsupported_device_policy() -> Dictionary:
 	var policy_path := _resolved_unsupported_device_policy_path()
