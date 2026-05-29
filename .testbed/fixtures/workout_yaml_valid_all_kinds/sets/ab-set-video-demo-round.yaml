@@ -3,4 +3,5 @@ schemaVersion: 1
 recordVersion: 1
 setId: ab-set-video-demo-round
 setName: Video Demo Round
-environmentId: ab-environment-video-demo
+preferredEnvironmentId: ab-environment-video-demo
+fallbackEnvironmentId: ab-environment-video-demo

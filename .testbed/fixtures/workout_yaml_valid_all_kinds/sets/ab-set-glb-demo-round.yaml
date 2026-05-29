@@ -3,4 +3,5 @@ schemaVersion: 1
 recordVersion: 1
 setId: ab-set-glb-demo-round
 setName: GLB Demo Round
-environmentId: ab-environment-glb-demo
+preferredEnvironmentId: ab-environment-glb-demo
+fallbackEnvironmentId: ab-environment-glb-demo

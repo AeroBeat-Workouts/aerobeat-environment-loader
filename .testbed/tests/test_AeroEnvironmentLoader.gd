@@ -2,7 +2,7 @@ extends GutTest
 
 const AERO_ENVIRONMENT_LOADER_SCRIPT = preload("res://../src/AeroEnvironmentLoader.gd")
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("res://../src/AeroWorkoutYamlEnvironmentBridge.gd")
-const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFTool.gd")
+const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFLoader.gd")
 const CORE_CONSTANTS_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const CORE_REQUEST_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_request.gd")
 const CORE_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
@@ -198,7 +198,8 @@ func _make_multi_set_workout_package() -> Dictionary:
 		"recordVersion: 1",
 		"setId: ab-set-image-demo-round-2",
 		"setName: Image Demo Round Two",
-		"environmentId: ab-environment-image-demo-2",
+		"preferredEnvironmentId: ab-environment-image-demo-2",
+		"fallbackEnvironmentId: ab-environment-image-demo",
 	]))
 	second_set_file.close()
 
@@ -240,7 +241,7 @@ func test_loader_glb_stack_stays_on_shared_facade() -> void:
 	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var script: Script = manager.get_script()
 	var source_text := FileAccess.get_file_as_string(script.resource_path)
-	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFTool.gd")'))
+	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFLoader.gd")'))
 	assert_true(source_text.contains("load_scene({"))
 	assert_false(source_text.contains("PackedScene).instantiate()"))
 	manager.free()
@@ -329,6 +330,12 @@ func test_workout_yaml_bridge_accepts_absolute_workout_yaml_path() -> void:
 	assert_eq(metadata.get("workout_path", ""), workout_path)
 	assert_eq(metadata.get("source", ""), "workout_yaml")
 	assert_eq(metadata.get("environment_record_path", ""), String(package_copy.get("package_dir", "")).path_join("environments/ab-environment-image-demo.yaml"))
+	assert_eq(metadata.get("preferred_environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("fallback_environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("selected_environment_role", ""), "preferred")
+	var candidates := Dictionary(metadata.get("environment_candidates", {}))
+	assert_eq(Dictionary(candidates.get("preferred", {})).get("environment_id", ""), "ab-environment-image-demo")
+	assert_eq(Dictionary(candidates.get("fallback", {})).get("environment_id", ""), "ab-environment-image-demo")
 
 func test_workout_yaml_bridge_accepts_absolute_package_directory_path() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
@@ -363,6 +370,10 @@ func test_inspect_workout_package_returns_manifest_for_each_set() -> void:
 	assert_eq(second_set.get("set_name", ""), "Image Demo Round Two")
 	assert_eq(second_set.get("kind", ""), "image")
 	assert_eq(second_set.get("environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(second_set.get("preferred_environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(second_set.get("fallback_environment_id", ""), "ab-environment-image-demo")
+	assert_eq(Dictionary(second_set.get("preferred_environment", {})).get("environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(Dictionary(second_set.get("fallback_environment", {})).get("environment_id", ""), "ab-environment-image-demo")
 	assert_eq(second_set.get("asset_path", ""), String(package_copy.get("image_asset_path", "")))
 
 func test_workout_yaml_bridge_builds_request_for_specific_set() -> void:
@@ -383,6 +394,52 @@ func test_workout_yaml_bridge_builds_request_for_specific_set() -> void:
 	assert_eq(metadata.get("set_name", ""), "Image Demo Round Two")
 	assert_eq(int(metadata.get("set_index", -1)), 4)
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(metadata.get("preferred_environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(metadata.get("fallback_environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("selected_environment_role", ""), "preferred")
+	var candidates := Dictionary(metadata.get("environment_candidates", {}))
+	assert_eq(Dictionary(candidates.get("preferred", {})).get("environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(Dictionary(candidates.get("fallback", {})).get("environment_id", ""), "ab-environment-image-demo")
+
+func test_workout_yaml_bridge_rejects_missing_preferred_environment_id() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var set_path := String(package_copy.get("package_dir", "")).path_join("sets/ab-set-image-demo-round.yaml")
+	var set_file := FileAccess.open(set_path, FileAccess.WRITE)
+	assert_not_null(set_file)
+	set_file.store_string("\n".join([
+		"schemaId: aerobeat.set.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"setId: ab-set-image-demo-round",
+		"setName: Image Demo Round",
+		"fallbackEnvironmentId: ab-environment-image-demo",
+	]) + "\n")
+	set_file.close()
+	var result := bridge.inspect_workout_package(String(package_copy.get("workout_path", "")))
+	assert_false(result.get("ok", true))
+	assert_eq(result.get("error_code", ""), "invalid_workout_yaml")
+	assert_eq(result.get("message", ""), "Resolved set is missing preferredEnvironmentId.")
+
+func test_workout_yaml_bridge_rejects_missing_fallback_environment_id() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var set_path := String(package_copy.get("package_dir", "")).path_join("sets/ab-set-image-demo-round.yaml")
+	var set_file := FileAccess.open(set_path, FileAccess.WRITE)
+	assert_not_null(set_file)
+	set_file.store_string("\n".join([
+		"schemaId: aerobeat.set.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"setId: ab-set-image-demo-round",
+		"setName: Image Demo Round",
+		"preferredEnvironmentId: ab-environment-image-demo",
+	]) + "\n")
+	set_file.close()
+	var result := bridge.inspect_workout_package(String(package_copy.get("workout_path", "")))
+	assert_false(result.get("ok", true))
+	assert_eq(result.get("error_code", ""), "invalid_workout_yaml")
+	assert_eq(result.get("message", ""), "Resolved set is missing fallbackEnvironmentId.")
 
 func test_load_environment_from_workout_yaml_emits_progress_and_success() -> void:
 	var setup := _make_manager()
@@ -457,6 +514,8 @@ func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void
 	assert_eq(metadata.get("set_name", ""), "Image Demo Round Two")
 	assert_eq(int(metadata.get("set_index", -1)), 4)
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(metadata.get("preferred_environment_id", ""), "ab-environment-image-demo-2")
+	assert_eq(metadata.get("fallback_environment_id", ""), "ab-environment-image-demo")
 	await get_tree().process_frame
 
 func test_load_environment_from_absolute_workout_set_splat_succeeds() -> void:

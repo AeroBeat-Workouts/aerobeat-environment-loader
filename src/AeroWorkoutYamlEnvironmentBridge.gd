@@ -9,6 +9,9 @@ const TYPE_TO_KIND := {
 	"splat": "splat",
 }
 
+const PREFERRED_ENVIRONMENT_ROLE := "preferred"
+const FALLBACK_ENVIRONMENT_ROLE := "fallback"
+
 var _parser: RefCounted = SIMPLE_YAML_PARSER_SCRIPT.new()
 
 func inspect_workout_package(yaml_path: String) -> Dictionary:
@@ -59,6 +62,8 @@ func _build_request_from_set_descriptor(package_result: Dictionary, set_descript
 	var context_metadata: Variant = context.get("metadata", {})
 	if context_metadata is Dictionary:
 		metadata.merge(Dictionary(context_metadata), true)
+	var preferred_candidate: Dictionary = Dictionary(set_descriptor.get("preferred_environment", {})).duplicate(true)
+	var fallback_candidate: Dictionary = Dictionary(set_descriptor.get("fallback_environment", {})).duplicate(true)
 	metadata.merge({
 		"source": "workout_yaml",
 		"package_dir": String(package_result.get("package_dir", "")),
@@ -69,17 +74,36 @@ func _build_request_from_set_descriptor(package_result: Dictionary, set_descript
 		"set_index": int(set_descriptor.get("set_index", 0)),
 		"set_id": String(set_descriptor.get("set_id", "")),
 		"set_name": String(set_descriptor.get("set_name", "")),
-		"environment_id": String(set_descriptor.get("environment_id", "")),
-		"environment_name": String(set_descriptor.get("environment_name", "")),
-		"environment_record_path": String(set_descriptor.get("environment_record_path", "")),
-		"environment_type": String(set_descriptor.get("environment_type", "")),
-		"resource_path": String(set_descriptor.get("resource_path", "")),
+		"environment_id": String(preferred_candidate.get("environment_id", "")),
+		"environment_name": String(preferred_candidate.get("environment_name", "")),
+		"environment_record_path": String(preferred_candidate.get("environment_record_path", "")),
+		"environment_type": String(preferred_candidate.get("environment_type", "")),
+		"resource_path": String(preferred_candidate.get("resource_path", "")),
+		"preferred_environment_id": String(preferred_candidate.get("environment_id", "")),
+		"preferred_environment_name": String(preferred_candidate.get("environment_name", "")),
+		"preferred_environment_record_path": String(preferred_candidate.get("environment_record_path", "")),
+		"preferred_environment_type": String(preferred_candidate.get("environment_type", "")),
+		"preferred_resource_path": String(preferred_candidate.get("resource_path", "")),
+		"preferred_asset_path": String(preferred_candidate.get("asset_path", "")),
+		"preferred_kind": String(preferred_candidate.get("kind", "")),
+		"fallback_environment_id": String(fallback_candidate.get("environment_id", "")),
+		"fallback_environment_name": String(fallback_candidate.get("environment_name", "")),
+		"fallback_environment_record_path": String(fallback_candidate.get("environment_record_path", "")),
+		"fallback_environment_type": String(fallback_candidate.get("environment_type", "")),
+		"fallback_resource_path": String(fallback_candidate.get("resource_path", "")),
+		"fallback_asset_path": String(fallback_candidate.get("asset_path", "")),
+		"fallback_kind": String(fallback_candidate.get("kind", "")),
+		"environment_candidates": {
+			PREFERRED_ENVIRONMENT_ROLE: preferred_candidate,
+			FALLBACK_ENVIRONMENT_ROLE: fallback_candidate,
+		},
+		"selected_environment_role": PREFERRED_ENVIRONMENT_ROLE,
 	}, true)
 
 	var request := {
 		"request_id": String(context.get("request_id", "")).strip_edges(),
-		"kind": String(set_descriptor.get("kind", "")).strip_edges(),
-		"asset_path": String(set_descriptor.get("asset_path", "")).strip_edges(),
+		"kind": String(preferred_candidate.get("kind", "")).strip_edges(),
+		"asset_path": String(preferred_candidate.get("asset_path", "")).strip_edges(),
 		"config_path": String(context.get("config_path", "")).strip_edges(),
 		"display_mode": String(context.get("display_mode", "cover")).strip_edges(),
 		"context": context.duplicate(true),
@@ -110,14 +134,60 @@ func _resolve_set_descriptor(package_dir: String, workout_path: String, workout_
 	if not set_result.get("ok", false):
 		return set_result
 	var set_record: Dictionary = Dictionary(set_result.get("record", {}))
-	var environment_id := String(set_record.get("environmentId", "")).strip_edges()
-	if environment_id.is_empty():
-		return _error("invalid_workout_yaml", "Resolved set is missing environmentId.", false)
+	var preferred_environment_id := String(set_record.get("preferredEnvironmentId", "")).strip_edges()
+	if preferred_environment_id.is_empty():
+		return _error("invalid_workout_yaml", "Resolved set is missing preferredEnvironmentId.", false)
+	var fallback_environment_id := String(set_record.get("fallbackEnvironmentId", "")).strip_edges()
+	if fallback_environment_id.is_empty():
+		return _error("invalid_workout_yaml", "Resolved set is missing fallbackEnvironmentId.", false)
 
-	var environment_result: Dictionary = _find_yaml_record_by_id(package_dir.path_join("environments"), "environmentId", environment_id)
-	if not environment_result.get("ok", false):
-		return environment_result
-	var environment_record: Dictionary = Dictionary(environment_result.get("record", {}))
+	var preferred_environment_result := _find_yaml_record_by_id(package_dir.path_join("environments"), "environmentId", preferred_environment_id)
+	if not preferred_environment_result.get("ok", false):
+		return preferred_environment_result
+	var fallback_environment_result := _find_yaml_record_by_id(package_dir.path_join("environments"), "environmentId", fallback_environment_id)
+	if not fallback_environment_result.get("ok", false):
+		return fallback_environment_result
+
+	var preferred_candidate_result := _build_environment_candidate(package_dir, Dictionary(preferred_environment_result.get("record", {})), String(preferred_environment_result.get("path", "")))
+	if not preferred_candidate_result.get("ok", false):
+		return preferred_candidate_result
+	var fallback_candidate_result := _build_environment_candidate(package_dir, Dictionary(fallback_environment_result.get("record", {})), String(fallback_environment_result.get("path", "")))
+	if not fallback_candidate_result.get("ok", false):
+		return fallback_candidate_result
+
+	var preferred_candidate := Dictionary(preferred_candidate_result.get("candidate", {})).duplicate(true)
+	var fallback_candidate := Dictionary(fallback_candidate_result.get("candidate", {})).duplicate(true)
+
+	return {
+		"ok": true,
+		"set": {
+			"set_index": set_index,
+			"set_id": set_id,
+			"set_name": String(set_record.get("setName", "")),
+			"set_record_path": String(set_result.get("path", "")),
+			"environment_id": String(preferred_candidate.get("environment_id", "")),
+			"environment_name": String(preferred_candidate.get("environment_name", "")),
+			"environment_record_path": String(preferred_candidate.get("environment_record_path", "")),
+			"environment_type": String(preferred_candidate.get("environment_type", "")),
+			"kind": String(preferred_candidate.get("kind", "")),
+			"resource_path": String(preferred_candidate.get("resource_path", "")),
+			"asset_path": String(preferred_candidate.get("asset_path", "")),
+			"preferred_environment_id": preferred_environment_id,
+			"fallback_environment_id": fallback_environment_id,
+			"preferred_environment": preferred_candidate,
+			"fallback_environment": fallback_candidate,
+			"environment_candidates": {
+				PREFERRED_ENVIRONMENT_ROLE: preferred_candidate,
+				FALLBACK_ENVIRONMENT_ROLE: fallback_candidate,
+			},
+			"workout_id": String(workout_record.get("workoutId", "")),
+			"workout_name": String(workout_record.get("workoutName", "")),
+			"workout_path": workout_path,
+			"package_dir": package_dir,
+		},
+	}
+
+func _build_environment_candidate(package_dir: String, environment_record: Dictionary, environment_record_path: String) -> Dictionary:
 	var environment_type := String(environment_record.get("type", "")).strip_edges()
 	var kind := String(TYPE_TO_KIND.get(environment_type, ""))
 	if kind.is_empty():
@@ -130,22 +200,14 @@ func _resolve_set_descriptor(package_dir: String, workout_path: String, workout_
 
 	return {
 		"ok": true,
-		"set": {
-			"set_index": set_index,
-			"set_id": set_id,
-			"set_name": String(set_record.get("setName", "")),
-			"set_record_path": String(set_result.get("path", "")),
-			"environment_id": environment_id,
+		"candidate": {
+			"environment_id": String(environment_record.get("environmentId", "")),
 			"environment_name": String(environment_record.get("environmentName", "")),
-			"environment_record_path": String(environment_result.get("path", "")),
+			"environment_record_path": environment_record_path,
 			"environment_type": environment_type,
 			"kind": kind,
 			"resource_path": resource_path,
 			"asset_path": asset_path,
-			"workout_id": String(workout_record.get("workoutId", "")),
-			"workout_name": String(workout_record.get("workoutName", "")),
-			"workout_path": workout_path,
-			"package_dir": package_dir,
 		},
 	}
 

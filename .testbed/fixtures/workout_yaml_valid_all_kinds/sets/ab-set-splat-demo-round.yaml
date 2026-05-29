@@ -3,4 +3,5 @@ schemaVersion: 1
 recordVersion: 1
 setId: ab-set-splat-demo-round
 setName: Gaussian Splat Demo Round
-environmentId: ab-environment-splat-demo
+preferredEnvironmentId: ab-environment-splat-demo
+fallbackEnvironmentId: ab-environment-splat-demo
