@@ -36,6 +36,11 @@
       "checkout": "main",
       "subfolder": "/"
     },
+    "aerobeat-tool-device-detection": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-device-detection.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
     "aerobeat-vendor-godot-gltf": {
       "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-gltf.git",
       "checkout": "main",

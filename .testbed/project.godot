@@ -6,6 +6,10 @@ config/name="AeroBeat Tool Testbed"
 run/main_scene="res://scenes/environment_testbed.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 
+[autoload]
+
+AeroDeviceDetection="*res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")

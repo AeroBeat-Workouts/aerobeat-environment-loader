@@ -12,6 +12,44 @@ const CORE_REQUEST_VALIDATOR_SCRIPT = preload("res://addons/aerobeat-environment
 const FIXTURE_PACKAGE_DIR_PATH := "res://fixtures/workout_yaml_valid_all_kinds"
 const FIXTURE_WORKOUT_YAML_PATH := "%s/workout.yaml" % FIXTURE_PACKAGE_DIR_PATH
 
+func _supported_device_simulation() -> Dictionary:
+	return {
+		"profile": "desktop_rtx_4090",
+		"device_name": "Desktop RTX 4090",
+		"model_name": "Desktop RTX 4090",
+		"platform": "linux",
+		"os_name": "Linux",
+		"os_version": "6.0",
+		"cpu_name": "AMD Ryzen 9",
+		"gpu_name": "NVIDIA GeForce RTX 4090",
+		"gpu_vendor": "NVIDIA",
+		"renderer_name": "forward_plus",
+		"rendering_method": "forward_plus",
+		"display_server": "x11",
+		"screen_size": {"width": 2560, "height": 1440},
+		"memory_gb": 32.0,
+		"tags": ["desktop", "nvidia"],
+	}
+
+func _blacklisted_intel_iris_xe_simulation() -> Dictionary:
+	return {
+		"profile": "surface_pro_8",
+		"device_name": "Surface Pro 8",
+		"model_name": "Surface Pro 8",
+		"platform": "windows",
+		"os_name": "Windows",
+		"os_version": "11",
+		"cpu_name": "11th Gen Intel(R) Core(TM) i7-1185G7",
+		"gpu_name": "Intel Iris Xe Graphics",
+		"gpu_vendor": "Intel",
+		"renderer_name": "forward_plus",
+		"rendering_method": "forward_plus",
+		"display_server": "windows",
+		"screen_size": {"width": 2880, "height": 1920},
+		"memory_gb": 16.0,
+		"tags": ["surface", "intel"],
+	}
+
 func _make_manager() -> Dictionary:
 	var root := Node.new()
 	add_child_autofree(root)
@@ -503,6 +541,7 @@ func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void
 	manager.load_environment_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-image-demo-round-2", {
 		"request_id": "workout-image-load-second-set",
 		"display_mode": "contain",
+		"device_detection_simulation": _supported_device_simulation(),
 	})
 	var result: Dictionary = await manager.environment_load_succeeded
 	assert_true(result.get("ok", false))
@@ -516,6 +555,75 @@ func test_load_environment_from_workout_set_uses_selected_set_metadata() -> void
 	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo-2")
 	assert_eq(metadata.get("preferred_environment_id", ""), "ab-environment-image-demo-2")
 	assert_eq(metadata.get("fallback_environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("selected_environment_role", ""), "preferred")
+	var routing := Dictionary(metadata.get("device_routing", {}))
+	assert_eq(routing.get("reason", ""), "supported_device")
+	assert_eq(Dictionary(routing.get("device", {})).get("gpu_name", ""), "NVIDIA GeForce RTX 4090")
+	await get_tree().process_frame
+
+func test_blacklisted_intel_iris_xe_routes_workout_set_to_fallback_environment() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	var package_copy := _make_multi_set_workout_package()
+	manager.load_environment_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-image-demo-round-2", {
+		"request_id": "workout-image-load-blacklisted-intel",
+		"display_mode": "contain",
+		"device_detection_simulation": _blacklisted_intel_iris_xe_simulation(),
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	var metadata := Dictionary(result.get("metadata", {}))
+	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("selected_environment_role", ""), "fallback")
+	var routing := Dictionary(metadata.get("device_routing", {}))
+	assert_eq(routing.get("reason", ""), "blacklisted_gpu")
+	assert_eq(routing.get("matched_gpu_rule", ""), "Intel Iris Xe")
+	assert_eq(Dictionary(routing.get("device", {})).get("gpu_name", ""), "Intel Iris Xe Graphics")
+	await get_tree().process_frame
+
+func test_missing_loader_policy_routes_workout_set_to_fallback() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.unsupported_device_policy_path = "res://fixtures/missing_unsupported_device_policy.yaml"
+	var package_copy := _make_multi_set_workout_package()
+	manager.load_environment_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-image-demo-round-2", {
+		"request_id": "workout-image-load-missing-policy",
+		"display_mode": "contain",
+		"device_detection_simulation": _supported_device_simulation(),
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	var metadata := Dictionary(result.get("metadata", {}))
+	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("selected_environment_role", ""), "fallback")
+	var routing := Dictionary(metadata.get("device_routing", {}))
+	assert_eq(routing.get("reason", ""), "policy_missing")
+	assert_false(routing.get("policy_loaded", true))
+	await get_tree().process_frame
+
+func test_invalid_loader_policy_routes_workout_set_to_fallback() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	var invalid_policy_path := "/tmp/aerobeat-environment-loader-invalid-policy-%s.yaml" % str(Time.get_ticks_usec())
+	var invalid_policy_file := FileAccess.open(invalid_policy_path, FileAccess.WRITE)
+	assert_not_null(invalid_policy_file)
+	invalid_policy_file.store_string("schemaId: aerobeat.environment_loader.unsupported_devices.v1\ngpuBlacklist: Intel Iris Xe\n")
+	invalid_policy_file.close()
+	manager.unsupported_device_policy_path = invalid_policy_path
+	var package_copy := _make_multi_set_workout_package()
+	manager.load_environment_from_workout_set(String(package_copy.get("workout_path", "")), "ab-set-image-demo-round-2", {
+		"request_id": "workout-image-load-invalid-policy",
+		"display_mode": "contain",
+		"device_detection_simulation": _supported_device_simulation(),
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	var metadata := Dictionary(result.get("metadata", {}))
+	assert_eq(metadata.get("environment_id", ""), "ab-environment-image-demo")
+	assert_eq(metadata.get("selected_environment_role", ""), "fallback")
+	var routing := Dictionary(metadata.get("device_routing", {}))
+	assert_eq(routing.get("reason", ""), "policy_invalid")
+	assert_false(routing.get("policy_loaded", true))
 	await get_tree().process_frame
 
 func test_load_environment_from_absolute_workout_set_splat_succeeds() -> void:

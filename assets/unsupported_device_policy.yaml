@@ -1,0 +1,5 @@
+schemaId: aerobeat.environment_loader.unsupported_devices.v1
+schemaVersion: 1
+recordVersion: 1
+gpuBlacklist:
+  - Intel Iris Xe

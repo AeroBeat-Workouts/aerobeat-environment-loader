@@ -30,6 +30,7 @@ func _ready() -> void:
 	_append_status("Workout package testbed ready.")
 	_append_status("Load Workout reads a package-root workout.yaml from res:// or an arbitrary absolute path.")
 	_append_status("Committed stack fixture: %s" % ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH))
+	_append_status("Device routing uses AeroDeviceDetection plus the loader-owned GPU blacklist policy asset.")
 	_refresh_workout_ui()
 
 func _default_workout_entry_path() -> String:
@@ -217,7 +218,17 @@ func _on_environment_load_progress(progress: Dictionary) -> void:
 func _on_environment_load_succeeded(result: Dictionary) -> void:
 	current_path_label.text = "Current asset: %s" % String(result.get("asset_path", ""))
 	config_path_edit.text = String(result.get("config_path", config_path_edit.text))
-	_append_status("SUCCESS %s %s" % [result.get("kind", ""), result.get("asset_path", "")])
+	var metadata := Dictionary(result.get("metadata", {}))
+	var routing := Dictionary(metadata.get("device_routing", {}))
+	var route_suffix := ""
+	if not routing.is_empty():
+		var device := Dictionary(routing.get("device", {}))
+		route_suffix = " • role=%s reason=%s gpu=%s" % [
+			String(metadata.get("selected_environment_role", routing.get("selected_role", ""))),
+			String(routing.get("reason", "")),
+			String(device.get("gpu_name", "unknown")),
+		]
+	_append_status("SUCCESS %s %s%s" % [result.get("kind", ""), result.get("asset_path", ""), route_suffix])
 
 func _on_environment_load_failed(error: Dictionary) -> void:
 	_append_status("ERROR %s: %s" % [error.get("error_code", "loader_failed"), error.get("message", "")])

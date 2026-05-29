@@ -105,7 +105,9 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
 - Each set YAML record must now declare both `preferredEnvironmentId` and `fallbackEnvironmentId`.
 - Workout-package validation fails if either field is missing.
 - The bridge resolves **both** environment records and exposes them in the returned set descriptor / request metadata as `preferred_*`, `fallback_*`, and `environment_candidates`.
-- For this bead, the bridge still builds the immediate request from the **preferred** environment and reports `selected_environment_role: preferred`. Unsupported-device routing policy remains loader-owned runtime logic and is intentionally **not** encoded in workout YAML.
+- The bridge still resolves and exposes the candidate metadata first; the loader then makes the preferred-vs-fallback decision at runtime before calling `load_environment(...)`.
+- Unsupported-device routing policy remains loader-owned runtime logic and is intentionally **not** encoded in workout YAML.
+- The committed loader-owned policy asset lives at `assets/unsupported_device_policy.yaml`, currently using a GPU blacklist with `Intel Iris Xe` as the first forced-fallback entry, and `.testbed/project.godot` wires `AeroDeviceDetection` so the hidden testbed can prove live/simulated device routing truthfully.
 
 ## Validation notes
 

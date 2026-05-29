@@ -107,8 +107,10 @@ class _AeroEnvironmentLoaderGLTFBackendAdapter:
 
 const VERSION: String = "0.2.0"
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironmentBridge.gd")
+const SIMPLE_YAML_PARSER_SCRIPT = preload("AeroSimpleYamlParser.gd")
 const AERO_VIDEO_PLAYER_MANAGER_SCRIPT = preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")
 const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFLoader.gd")
+const AERO_DEVICE_DETECTION_SCRIPT = preload("res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd")
 const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
 const AERO_ENVIRONMENT_RESULT_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_result.gd")
 const AERO_ENVIRONMENT_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/data_types/environment_error.gd")
@@ -145,11 +147,22 @@ const GLTF_FAILURE_SUBSYSTEM := "gltf"
 const GLTF_ERROR_STAGE_LOAD := "load"
 const GLTF_ERROR_STAGE_ATTACH := "attach_scene_root"
 const GLTF_ERROR_STAGE_CONFIG := "apply_config"
+const ENVIRONMENT_ROLE_PREFERRED := "preferred"
+const ENVIRONMENT_ROLE_FALLBACK := "fallback"
+const DEVICE_ROUTING_REASON_SUPPORTED := "supported_device"
+const DEVICE_ROUTING_REASON_BLACKLISTED_GPU := "blacklisted_gpu"
+const DEVICE_ROUTING_REASON_UNSUPPORTED_DEVICE := "unsupported_device"
+const DEVICE_ROUTING_REASON_DEVICE_DETECTION_FAILED := "device_detection_failed"
+const DEVICE_ROUTING_REASON_POLICY_MISSING := "policy_missing"
+const DEVICE_ROUTING_REASON_POLICY_INVALID := "policy_invalid"
+const UNSUPPORTED_DEVICE_POLICY_SCHEMA_ID := "aerobeat.environment_loader.unsupported_devices.v1"
+const DEVICE_DETECTION_UNKNOWN := "unknown"
 
 @export var is_active: bool = true
 @export var canvas_root_path: NodePath
 @export var world_root_path: NodePath
 @export var create_default_roots: bool = true
+@export_file("*.yaml", "*.yml") var unsupported_device_policy_path: String = ""
 
 var _canvas_root: Control
 var _world_root: Node3D
@@ -157,8 +170,10 @@ var _current_environment: Dictionary = {}
 var _current_display_node: Node
 var _active_request: Dictionary = {}
 var _bridge: RefCounted
+var _policy_parser: RefCounted
 var _video_player_manager: Node
 var _gltf_tool: RefCounted
+var _device_detection_service: Node
 
 func _ready() -> void:
 	_bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
@@ -187,7 +202,17 @@ func _load_environment_from_workout_bridge_result(yaml_path: String, context: Di
 			bool(bridge_result.get("recoverable", true))
 		)
 		return
-	load_environment(Dictionary(bridge_result.get("request", {})))
+	var routed_request_result := _resolve_workout_routed_request(Dictionary(bridge_result.get("request", {})))
+	if not routed_request_result.get("ok", false):
+		var failed_request := _dictionary_from_request_variant(routed_request_result.get("request", bridge_result.get("request", {})))
+		_emit_failure(
+			failed_request,
+			String(routed_request_result.get("error_code", ERROR_INVALID_REQUEST)),
+			String(routed_request_result.get("message", "Workout environment request could not be routed.")),
+			bool(routed_request_result.get("recoverable", true))
+		)
+		return
+	load_environment(Dictionary(routed_request_result.get("request", {})))
 
 func load_environment(request: Dictionary) -> void:
 	if not is_active:
@@ -219,6 +244,231 @@ func load_environment_from_workout_yaml(yaml_path: String, context: Dictionary =
 
 func load_environment_from_workout_set(yaml_path: String, set_reference: Variant, context: Dictionary = {}) -> void:
 	_load_environment_from_workout_bridge_result(yaml_path, context, _ensure_bridge().build_request_from_workout_set(yaml_path, set_reference, context))
+
+func _resolve_workout_routed_request(request: Dictionary) -> Dictionary:
+	var metadata := _dictionary_or_empty(request.get("metadata", {}))
+	var candidates := _dictionary_or_empty(metadata.get("environment_candidates", {}))
+	if candidates.is_empty():
+		return {
+			"ok": true,
+			"request": request.duplicate(true),
+		}
+	var preferred_candidate := _dictionary_or_empty(candidates.get(ENVIRONMENT_ROLE_PREFERRED, {}))
+	var fallback_candidate := _dictionary_or_empty(candidates.get(ENVIRONMENT_ROLE_FALLBACK, {}))
+	if preferred_candidate.is_empty() or fallback_candidate.is_empty():
+		return _invalid_request(request, "Workout request is missing preferred/fallback environment candidates.")
+
+	var policy_result := _load_unsupported_device_policy()
+	var device_response := _detect_device_for_request(request)
+	var selected_role := ENVIRONMENT_ROLE_PREFERRED
+	var routing_reason := DEVICE_ROUTING_REASON_SUPPORTED
+	var matched_gpu_rule := ""
+
+	if not policy_result.get("ok", false):
+		selected_role = ENVIRONMENT_ROLE_FALLBACK
+		routing_reason = String(policy_result.get("error_code", DEVICE_ROUTING_REASON_POLICY_INVALID))
+	elif not bool(device_response.get("success", false)):
+		selected_role = ENVIRONMENT_ROLE_FALLBACK
+		routing_reason = DEVICE_ROUTING_REASON_DEVICE_DETECTION_FAILED
+	else:
+		var device := _dictionary_or_empty(device_response.get("device", {}))
+		if _is_device_unsupported(device):
+			selected_role = ENVIRONMENT_ROLE_FALLBACK
+			routing_reason = DEVICE_ROUTING_REASON_UNSUPPORTED_DEVICE
+		else:
+			matched_gpu_rule = _find_matching_gpu_blacklist_rule(device, Array(policy_result.get("gpu_blacklist", [])))
+			if not matched_gpu_rule.is_empty():
+				selected_role = ENVIRONMENT_ROLE_FALLBACK
+				routing_reason = DEVICE_ROUTING_REASON_BLACKLISTED_GPU
+
+	var selected_candidate := preferred_candidate if selected_role == ENVIRONMENT_ROLE_PREFERRED else fallback_candidate
+	var routed_request := request.duplicate(true)
+	routed_request["kind"] = String(selected_candidate.get("kind", routed_request.get("kind", ""))).strip_edges()
+	routed_request["asset_path"] = String(selected_candidate.get("asset_path", routed_request.get("asset_path", ""))).strip_edges()
+	var routed_metadata := metadata.duplicate(true)
+	routed_metadata["environment_id"] = String(selected_candidate.get("environment_id", routed_metadata.get("environment_id", "")))
+	routed_metadata["environment_name"] = String(selected_candidate.get("environment_name", routed_metadata.get("environment_name", "")))
+	routed_metadata["environment_record_path"] = String(selected_candidate.get("environment_record_path", routed_metadata.get("environment_record_path", "")))
+	routed_metadata["environment_type"] = String(selected_candidate.get("environment_type", routed_metadata.get("environment_type", "")))
+	routed_metadata["resource_path"] = String(selected_candidate.get("resource_path", routed_metadata.get("resource_path", "")))
+	routed_metadata["selected_environment_role"] = selected_role
+	routed_metadata["selected_environment_id"] = String(selected_candidate.get("environment_id", routed_metadata.get("environment_id", "")))
+	routed_metadata["selected_environment_name"] = String(selected_candidate.get("environment_name", routed_metadata.get("environment_name", "")))
+	routed_metadata["selected_kind"] = String(selected_candidate.get("kind", routed_request.get("kind", "")))
+	routed_metadata["selected_asset_path"] = String(selected_candidate.get("asset_path", routed_request.get("asset_path", "")))
+	routed_metadata["device_routing"] = {
+		"selected_role": selected_role,
+		"reason": routing_reason,
+		"policy_path": String(policy_result.get("policy_path", _resolved_unsupported_device_policy_path())),
+		"policy_loaded": bool(policy_result.get("ok", false)),
+		"gpu_blacklist": Array(policy_result.get("gpu_blacklist", [])).duplicate(),
+		"matched_gpu_rule": matched_gpu_rule,
+		"device_detection_success": bool(device_response.get("success", false)),
+		"device": _dictionary_or_empty(device_response.get("device", {})),
+		"error": _dictionary_or_empty(device_response.get("error", {})),
+	}
+	routed_request["metadata"] = routed_metadata
+	return {
+		"ok": true,
+		"request": routed_request,
+	}
+
+func _detect_device_for_request(request: Dictionary) -> Dictionary:
+	var detector := _ensure_device_detection_service()
+	if detector == null:
+		return {
+			"success": false,
+			"device": {},
+			"error": {
+				"code": "device_detection_unavailable",
+				"message": "AeroDeviceDetection is unavailable.",
+			},
+		}
+	var routing_context := _routing_context(request)
+	var simulated_failure := _dictionary_or_empty(routing_context.get("device_detection_failure", {}))
+	if not simulated_failure.is_empty() and detector.has_method("simulate_failure"):
+		var failed_operation: Variant = detector.simulate_failure(simulated_failure)
+		return _device_detection_operation_payload(failed_operation)
+	var simulated_bundle := _dictionary_or_empty(routing_context.get("device_detection_simulation", {}))
+	if not simulated_bundle.is_empty() and detector.has_method("simulate_bundle"):
+		var simulated_operation: Variant = detector.simulate_bundle(simulated_bundle)
+		return _device_detection_operation_payload(simulated_operation)
+	var detection_options := _dictionary_or_empty(routing_context.get("device_detection_options", {}))
+	if detector.has_method("detect_live"):
+		var live_operation: Variant = detector.detect_live(detection_options)
+		return _device_detection_operation_payload(live_operation)
+	return {
+		"success": false,
+		"device": {},
+		"error": {
+			"code": "device_detection_method_missing",
+			"message": "AeroDeviceDetection does not expose detect_live.",
+		},
+	}
+
+func _device_detection_operation_payload(operation: Variant) -> Dictionary:
+	if operation != null and operation.has_method("get_payload"):
+		return _dictionary_or_empty(operation.get_payload())
+	return {
+		"success": false,
+		"device": {},
+		"error": {
+			"code": "device_detection_operation_missing",
+			"message": "AeroDeviceDetection did not return an operation payload.",
+		},
+	}
+
+func _ensure_device_detection_service() -> Node:
+	if is_instance_valid(_device_detection_service):
+		return _device_detection_service
+	if get_tree() != null and get_tree().root != null:
+		var singleton := get_tree().root.get_node_or_null("AeroDeviceDetection")
+		if singleton != null:
+			_device_detection_service = singleton
+			return _device_detection_service
+	if AERO_DEVICE_DETECTION_SCRIPT == null:
+		return null
+	_device_detection_service = AERO_DEVICE_DETECTION_SCRIPT.new()
+	return _device_detection_service
+
+func _load_unsupported_device_policy() -> Dictionary:
+	var policy_path := _resolved_unsupported_device_policy_path()
+	var absolute_policy_path := _absolute_or_same_path(policy_path)
+	if absolute_policy_path.is_empty() or not FileAccess.file_exists(absolute_policy_path):
+		return {
+			"ok": false,
+			"error_code": DEVICE_ROUTING_REASON_POLICY_MISSING,
+			"message": "Unsupported-device policy file does not exist: %s" % policy_path,
+			"policy_path": policy_path,
+		}
+	var parsed: Variant = _ensure_policy_parser().parse_file(absolute_policy_path)
+	if not (parsed is Dictionary):
+		return {
+			"ok": false,
+			"error_code": DEVICE_ROUTING_REASON_POLICY_INVALID,
+			"message": "Unsupported-device policy must parse into a dictionary.",
+			"policy_path": policy_path,
+		}
+	var record := Dictionary(parsed)
+	var schema_id := String(record.get("schemaId", record.get("schema_id", UNSUPPORTED_DEVICE_POLICY_SCHEMA_ID))).strip_edges()
+	if schema_id != UNSUPPORTED_DEVICE_POLICY_SCHEMA_ID:
+		return {
+			"ok": false,
+			"error_code": DEVICE_ROUTING_REASON_POLICY_INVALID,
+			"message": "Unsupported-device policy schemaId is invalid.",
+			"policy_path": policy_path,
+		}
+	var blacklist_value: Variant = record.get("gpuBlacklist", record.get("gpu_blacklist", []))
+	if not (blacklist_value is Array):
+		return {
+			"ok": false,
+			"error_code": DEVICE_ROUTING_REASON_POLICY_INVALID,
+			"message": "Unsupported-device policy gpuBlacklist must be an array.",
+			"policy_path": policy_path,
+		}
+	var gpu_blacklist: Array[String] = []
+	for entry in Array(blacklist_value):
+		var normalized_entry := String(entry).strip_edges()
+		if normalized_entry.is_empty():
+			continue
+		gpu_blacklist.append(normalized_entry)
+	return {
+		"ok": true,
+		"policy_path": policy_path,
+		"gpu_blacklist": gpu_blacklist,
+	}
+
+func _ensure_policy_parser() -> RefCounted:
+	if _policy_parser == null:
+		_policy_parser = SIMPLE_YAML_PARSER_SCRIPT.new()
+	return _policy_parser
+
+func _resolved_unsupported_device_policy_path() -> String:
+	if not unsupported_device_policy_path.strip_edges().is_empty():
+		return unsupported_device_policy_path.strip_edges()
+	var script_resource: Variant = get_script()
+	if script_resource != null and script_resource is Script:
+		var resource_path := String((script_resource as Script).resource_path)
+		if not resource_path.is_empty():
+			return resource_path.get_base_dir().path_join("../assets/unsupported_device_policy.yaml").simplify_path()
+	return "res://assets/unsupported_device_policy.yaml"
+
+func _routing_context(request: Dictionary) -> Dictionary:
+	var request_context := _dictionary_or_empty(request.get("context", {}))
+	var merged := request_context.duplicate(true)
+	var nested_context := _dictionary_or_empty(request_context.get("context", {}))
+	if not nested_context.is_empty():
+		merged.merge(nested_context, true)
+	return merged
+
+func _absolute_or_same_path(path: String) -> String:
+	if path.begins_with("res://") or path.begins_with("user://"):
+		return ProjectSettings.globalize_path(path)
+	return path
+
+func _is_device_unsupported(device: Dictionary) -> bool:
+	var gpu_name := String(device.get("gpu_name", DEVICE_DETECTION_UNKNOWN)).strip_edges().to_lower()
+	return gpu_name.is_empty() or gpu_name == DEVICE_DETECTION_UNKNOWN
+
+func _find_matching_gpu_blacklist_rule(device: Dictionary, gpu_blacklist: Array) -> String:
+	var gpu_name := _normalize_device_match_text(String(device.get("gpu_name", "")))
+	var renderer_name := _normalize_device_match_text(String(device.get("renderer_name", "")))
+	var combined := ("%s %s" % [gpu_name, renderer_name]).strip_edges()
+	for entry_variant in gpu_blacklist:
+		var entry := _normalize_device_match_text(String(entry_variant))
+		if entry.is_empty():
+			continue
+		if gpu_name.contains(entry) or combined.contains(entry):
+			return String(entry_variant)
+	return ""
+
+func _normalize_device_match_text(text: String) -> String:
+	var normalized := text.to_lower()
+	for token in ["(r)", "(tm)", "®", "™", "(", ")", "-", "_", "/", "\\", ".", ","]:
+		normalized = normalized.replace(token, " ")
+	while normalized.contains("  "):
+		normalized = normalized.replace("  ", " ")
+	return normalized.strip_edges()
 
 func clear_environment() -> void:
 	_clear_current_environment(true)

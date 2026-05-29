@@ -27,6 +27,8 @@ func test_readme_describes_environment_loader_boundary() -> void:
 	assert_true(readme_text.contains("preferredEnvironmentId"), "README should document the preferred environment contract")
 	assert_true(readme_text.contains("fallbackEnvironmentId"), "README should document the fallback environment contract")
 	assert_true(readme_text.contains("loader-owned runtime logic"), "README should keep device policy ownership out of workout YAML")
+	assert_true(readme_text.contains("assets/unsupported_device_policy.yaml"), "README should document the loader-owned unsupported-device policy asset")
+	assert_true(readme_text.contains("AeroDeviceDetection"), "README should document the device-detection runtime seam")
 
 func test_plugin_cfg_description_matches_environment_loader_scope() -> void:
 	var config := ConfigFile.new()
@@ -46,6 +48,7 @@ func test_addons_manifest_keeps_expected_dependencies_only() -> void:
 	assert_true(manifest_text.contains('"aerobeat-tool-video-player"'), "addons manifest should pin aerobeat-tool-video-player for the shared playback facade")
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-video"'), "addons manifest should pin aerobeat-vendor-godot-video for the Godot backend")
 	assert_true(manifest_text.contains('"aerobeat-tool-gltf-loader"'), "addons manifest should pin aerobeat-tool-gltf-loader for the shared GLTF facade")
+	assert_true(manifest_text.contains('"aerobeat-tool-device-detection"'), "addons manifest should pin aerobeat-tool-device-detection for runtime hardware routing")
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-gltf"'), "addons manifest should pin aerobeat-vendor-godot-gltf for the GLTF runtime backend")
 	assert_true(manifest_text.contains('"gut"'), "addons manifest should pin gut for repo-local tests")
 	assert_false(manifest_text.contains('"aerobeat-core"'), "addons manifest should not reintroduce stale aerobeat-core drift")
