@@ -34,6 +34,13 @@ jobs:
           dotnet tool install --global Chickensoft.GodotEnv
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
+      - name: 🧹 Clear cached/restored testbed addons
+        shell: bash
+        run: |
+          rm -rf .testbed/addons
+          rm -rf .testbed/.addons
+          mkdir -p .testbed/addons
+
       - name: 🔗 Restore testbed dependencies
         working-directory: ./.testbed
         run: godotenv addons install

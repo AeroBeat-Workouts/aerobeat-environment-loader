@@ -63,8 +63,10 @@ From the repo root:
 /workspace/scripts/godotenv-sync --repo /workspace/projects/aerobeat/aerobeat-environment-loader
 ```
 
-That restores this repo's current dev/test manifest into `.testbed/addons/`. Canonically, the loader
-manifest now includes `aerobeat-environment-core`, the shared image stack (`aerobeat-tool-image-loader`,
+That restores this repo's current dev/test manifest into `.testbed/addons/`. For a truthful drift check,
+clear any previously restored `.testbed/addons/` and `.testbed/.addons/` state first so missing explicit
+dependencies cannot be masked by stale local installs. Canonically, the loader manifest now includes
+`aerobeat-environment-core`, the shared image stack (`aerobeat-tool-image-loader`,
 `aerobeat-vendor-godot-image`), the shared GLTF stack (`aerobeat-tool-gltf-loader`,
 `aerobeat-vendor-godot-gltf`), the shared video stack (`aerobeat-tool-core`,
 `aerobeat-tool-video-player`, `aerobeat-vendor-godot-video`), and repo-local test tooling.
