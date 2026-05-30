@@ -109,6 +109,7 @@ const VERSION: String = "0.2.0"
 const WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT = preload("AeroWorkoutYamlEnvironmentBridge.gd")
 const SIMPLE_YAML_PARSER_SCRIPT = preload("AeroSimpleYamlParser.gd")
 const AERO_VIDEO_PLAYER_MANAGER_SCRIPT = preload("res://addons/aerobeat-tool-video-player/src/AeroVideoPlayerManager.gd")
+const AERO_IMAGE_LOADER_SCRIPT = preload("res://addons/aerobeat-tool-image-loader/src/AeroImageLoader.gd")
 const AERO_GLTF_TOOL_SCRIPT = preload("res://addons/aerobeat-tool-gltf-loader/src/AeroGLTFLoader.gd")
 const AERO_DEVICE_DETECTION_SCRIPT_PATH := "res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd"
 const AERO_ENVIRONMENT_CONSTANTS = preload("res://addons/aerobeat-environment-core/src/contracts/globals/aero_environment_constants.gd")
@@ -172,6 +173,7 @@ var _active_request: Dictionary = {}
 var _bridge: RefCounted
 var _policy_parser: RefCounted
 var _video_player_manager: Node
+var _image_loader: Node
 var _gltf_tool: RefCounted
 var _device_detection_service: Node
 
@@ -499,36 +501,71 @@ func _perform_load(request: Dictionary) -> void:
 
 func _load_image(request: Dictionary) -> void:
 	_emit_progress(request, STATUS_LOADING, 0.1, "Loading image environment...")
-	var absolute_path := _to_absolute_path(String(request.get("asset_path", "")))
-	if absolute_path.is_empty() or not FileAccess.file_exists(absolute_path):
-		_emit_failure(request, ERROR_FILE_MISSING, "Image file does not exist: %s" % request.get("asset_path", ""), true)
+	var asset_resolution := _resolve_asset_path(String(request.get("asset_path", "")))
+	var requested_asset_path := String(asset_resolution.get("requested_path", ""))
+	var absolute_path := String(asset_resolution.get("absolute_path", ""))
+	if absolute_path.is_empty() or not bool(asset_resolution.get("file_exists", false)):
+		_emit_failure(request, ERROR_FILE_MISSING, "Image file does not exist: %s" % requested_asset_path, true, _build_asset_resolution_details(asset_resolution))
 		return
-	var image := Image.new()
-	var image_error := image.load(absolute_path)
-	if image_error != OK:
-		_emit_failure(request, ERROR_LOADER_FAILED, "Image failed to load: %s" % absolute_path, true)
+	var image_loader := _ensure_image_loader()
+	if image_loader == null:
+		_emit_failure(request, ERROR_LOADER_FAILED, "AeroImageLoader is unavailable for image environments.", true, {
+			"subsystem": KIND_IMAGE,
+			"stage": STATUS_INSTANTIATING,
+			"service": "AeroImageLoader",
+		})
 		return
 	_emit_progress(request, STATUS_DECODING, 0.45, "Decoding image environment...")
-	var texture := ImageTexture.create_from_image(image)
-	if texture == null:
-		_emit_failure(request, ERROR_LOADER_FAILED, "Image texture could not be created for %s." % absolute_path, true)
-		return
-	var texture_rect := TextureRect.new()
+	var maintain_aspect_ratio := String(request.get("display_mode", DISPLAY_MODE_COVER)) != DISPLAY_MODE_CONTAIN
+	var texture_rect: TextureRect = image_loader.create_preview_surface("environment", maintain_aspect_ratio)
 	texture_rect.name = "EnvironmentImage"
-	texture_rect.texture = texture
-	texture_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	texture_rect.stretch_mode = TEXTURE_RECT_STRETCH_COVER if String(request.get("display_mode", DISPLAY_MODE_COVER)) == DISPLAY_MODE_COVER else TEXTURE_RECT_STRETCH_CONTAIN
-	texture_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	texture_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	texture_rect.offset_left = 0.0
-	texture_rect.offset_top = 0.0
-	texture_rect.offset_right = 0.0
-	texture_rect.offset_bottom = 0.0
 	_canvas_root.add_child(texture_rect)
+	var image_result: Dictionary = image_loader.load_image({
+		"path": requested_asset_path,
+		"slot": "environment",
+		"maintain_aspect_ratio": maintain_aspect_ratio,
+		"metadata": {
+			"environment_request_id": String(request.get("request_id", "")),
+			"environment_kind": KIND_IMAGE,
+			"requested_asset_path": requested_asset_path,
+			"absolute_asset_path": absolute_path,
+			"resource_asset_path": String(asset_resolution.get("resource_path", "")),
+		},
+	})
+	if not bool(image_result.get("success", false)):
+		var image_error_detail := _dictionary_or_empty(image_result.get("detail", {}))
+		var image_error_code := String(image_result.get("code", "")).strip_edges().to_lower()
+		var environment_error_code := ERROR_FILE_MISSING if image_error_code == "image_file_missing" else ERROR_LOADER_FAILED
+		texture_rect.queue_free()
+		_emit_failure(
+			request,
+			environment_error_code,
+			String(image_result.get("message", "Image failed to load.")),
+			true,
+			_build_asset_resolution_details(asset_resolution, {
+				"subsystem": KIND_IMAGE,
+				"stage": STATUS_DECODING,
+				"service": "AeroImageLoader",
+				"image_error": image_result.duplicate(true),
+				"image_error_detail": image_error_detail,
+			})
+		)
+		return
+	var image_details := _dictionary_or_empty(image_result.get("detail", {}))
 	_finalize_success(request, texture_rect, {
 		"format": OFFICIAL_FORMATS[KIND_IMAGE],
 		"config_path": "",
 		"config_applied": false,
+		"image_details": {
+			"path": String(image_details.get("path", requested_asset_path)),
+			"slot": String(image_details.get("slot", "environment")),
+			"maintain_aspect_ratio": bool(image_details.get("maintain_aspect_ratio", maintain_aspect_ratio)),
+			"width": int(image_details.get("width", 0)),
+			"height": int(image_details.get("height", 0)),
+			"path_kind": String(image_details.get("path_kind", "")),
+			"surface_attached": bool(image_details.get("surface_attached", false)),
+			"backend_result": _dictionary_or_empty(image_details.get("backend_result", {})),
+		},
 	})
 
 func _load_video(request: Dictionary) -> void:
@@ -714,6 +751,7 @@ func _ensure_roots() -> void:
 
 func _clear_current_environment(emit_signal: bool) -> void:
 	_teardown_video_player_manager()
+	_teardown_image_loader()
 	if _current_display_node != null and is_instance_valid(_current_display_node):
 		_current_display_node.queue_free()
 	_current_display_node = null
@@ -734,6 +772,32 @@ func _ensure_video_player_manager() -> Node:
 
 func _teardown_video_player_manager() -> void:
 	_unload_video_player_manager(_video_player_manager)
+
+func _ensure_image_loader() -> Node:
+	if _image_loader != null and is_instance_valid(_image_loader):
+		if _image_loader.get_parent() == null:
+			add_child(_image_loader)
+		return _image_loader
+	var root := get_tree().root if get_tree() != null else null
+	if root != null:
+		var singleton := root.get_node_or_null("/root/AeroImageLoader")
+		if singleton != null and singleton is Node:
+			_image_loader = singleton
+			return _image_loader
+	_image_loader = AERO_IMAGE_LOADER_SCRIPT.new()
+	_image_loader.name = "EnvironmentImageLoader"
+	add_child(_image_loader)
+	return _image_loader
+
+func _teardown_image_loader() -> void:
+	if _image_loader == null or not is_instance_valid(_image_loader):
+		return
+	if _image_loader.has_method("reset"):
+		_image_loader.reset()
+	if _image_loader.get_parent() == self:
+		remove_child(_image_loader)
+		_image_loader.queue_free()
+	_image_loader = null
 
 func _ensure_gltf_tool() -> RefCounted:
 	if _gltf_tool != null:

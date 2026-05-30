@@ -4,7 +4,7 @@ const README_PATH := "../README.md"
 const PLUGIN_CFG_PATH := "../plugin.cfg"
 const ADDONS_MANIFEST_PATH := "addons.jsonc"
 const EXPECTED_PLUGIN_NAME := "AeroBeat Environment Loader"
-const EXPECTED_PLUGIN_DESCRIPTION := "Environment loader/orchestrator package for AeroBeat. Consumes aerobeat-environment-core contracts, fulfills GLB through the shared AeroGLTFLoader facade, fulfills video through AeroVideoPlayerManager, and keeps image fulfillment plus workout YAML bridging."
+const EXPECTED_PLUGIN_DESCRIPTION := "Environment loader/orchestrator package for AeroBeat. Consumes aerobeat-environment-core contracts, fulfills image through the shared AeroImageLoader facade, fulfills GLB through the shared AeroGLTFLoader facade, fulfills video through AeroVideoPlayerManager, and keeps workout YAML bridging."
 
 func _read_repo_file(relative_path: String) -> String:
 	var absolute_path := ProjectSettings.globalize_path("res://%s" % relative_path)
@@ -18,10 +18,11 @@ func test_readme_describes_environment_loader_boundary() -> void:
 	assert_true(readme_text.contains("shared **environment loader/orchestrator package**"), "README should describe the environment loader role")
 	assert_true(readme_text.contains("aerobeat-environment-core"), "README should point at the shared environment contract package")
 	assert_true(readme_text.contains("public `AeroEnvironmentLoader.gd` entrypoint"), "README should document the renamed loader entrypoint")
+	assert_true(readme_text.contains("AeroImageLoader"), "README should document the shared image facade dependency")
 	assert_true(readme_text.contains("AeroVideoPlayerManager"), "README should document the shared video facade dependency")
 	assert_true(readme_text.contains("AeroGLTFLoader"), "README should document the shared GLTF facade dependency")
 	assert_true(readme_text.contains("swappable"), "README should describe the backend boundary as swappable")
-	assert_true(readme_text.contains("built-in image fulfillment"), "README should keep image ownership explicit")
+	assert_true(readme_text.contains("image fulfillment composed through the shared `AeroImageLoader` facade"), "README should keep the image ownership boundary explicit")
 	assert_true(readme_text.contains("GLB fulfillment orchestrated through the shared `AeroGLTFLoader` facade"), "README should describe the GLB boundary through the shared facade")
 	assert_true(readme_text.contains("workout/YAML bridge"), "README should keep the workout YAML bridge in the loader lane")
 	assert_true(readme_text.contains("preferredEnvironmentId"), "README should document the preferred environment contract")
@@ -44,6 +45,8 @@ func test_plugin_cfg_description_matches_environment_loader_scope() -> void:
 func test_addons_manifest_keeps_expected_dependencies_only() -> void:
 	var manifest_text := _read_repo_file(ADDONS_MANIFEST_PATH)
 	assert_true(manifest_text.contains('"aerobeat-environment-core"'), "addons manifest should pin aerobeat-environment-core")
+	assert_true(manifest_text.contains('"aerobeat-tool-image-loader"'), "addons manifest should pin aerobeat-tool-image-loader for the shared image facade")
+	assert_true(manifest_text.contains('"aerobeat-vendor-godot-image"'), "addons manifest should pin aerobeat-vendor-godot-image for the Godot image backend")
 	assert_true(manifest_text.contains('"aerobeat-tool-core"'), "addons manifest should pin aerobeat-tool-core for the shared video contract")
 	assert_true(manifest_text.contains('"aerobeat-tool-video-player"'), "addons manifest should pin aerobeat-tool-video-player for the shared playback facade")
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-video"'), "addons manifest should pin aerobeat-vendor-godot-video for the Godot backend")
@@ -52,3 +55,7 @@ func test_addons_manifest_keeps_expected_dependencies_only() -> void:
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-gltf"'), "addons manifest should pin aerobeat-vendor-godot-gltf for the GLTF runtime backend")
 	assert_true(manifest_text.contains('"gut"'), "addons manifest should pin gut for repo-local tests")
 	assert_false(manifest_text.contains('"aerobeat-core"'), "addons manifest should not reintroduce stale aerobeat-core drift")
+
+func test_project_autoloads_public_runtime_seams() -> void:
+	assert_eq(str(ProjectSettings.get_setting("autoload/AeroImageLoader", "")), "*res://addons/aerobeat-tool-image-loader/src/AeroImageLoader.gd", "Testbed should expose the public image-loader singleton through autoload")
+	assert_eq(str(ProjectSettings.get_setting("autoload/AeroDeviceDetection", "")), "*res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd", "Testbed should keep device detection autoloaded for runtime routing proof")

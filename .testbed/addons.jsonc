@@ -30,6 +30,17 @@
       "checkout": "main",
       "subfolder": "/"
     },
+    // Image fulfillment now composes the shared image-loader facade plus its current vendor backend.
+    "aerobeat-tool-image-loader": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-image-loader.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
+    "aerobeat-vendor-godot-image": {
+      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-image.git",
+      "checkout": "main",
+      "subfolder": "/"
+    },
     // GLB loading now composes the shared GLTF tool facade plus its current vendor backend.
     "aerobeat-tool-gltf-loader": {
       "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-gltf-loader.git",

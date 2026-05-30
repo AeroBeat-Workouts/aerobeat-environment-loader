@@ -275,6 +275,15 @@ func test_loader_video_stack_stays_on_shared_facade() -> void:
 	assert_false(source_text.contains("VideoStreamPlayer"))
 	manager.free()
 
+func test_loader_image_stack_stays_on_shared_facade() -> void:
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
+	var script: Script = manager.get_script()
+	var source_text := FileAccess.get_file_as_string(script.resource_path)
+	assert_true(source_text.contains('preload("res://addons/aerobeat-tool-image-loader/src/AeroImageLoader.gd")'))
+	assert_false(source_text.contains("var image := Image.new()"))
+	assert_false(source_text.contains("ImageTexture.create_from_image"))
+	manager.free()
+
 func test_loader_glb_stack_stays_on_shared_facade() -> void:
 	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
 	var script: Script = manager.get_script()
@@ -764,6 +773,32 @@ func test_load_environment_applies_glb_sidecar_config() -> void:
 	assert_false(vendor_details.has("document"))
 	assert_false(vendor_details.has("state"))
 	assert_false(vendor_details.has("scene"))
+	await get_tree().process_frame
+
+func test_image_load_uses_shared_image_loader_stack() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "image-stack-test",
+		"kind": "image",
+		"asset_path": "res://assets/images/perfect-hue-may-14-2026.png",
+		"display_mode": "cover",
+	})
+	var result: Dictionary = await manager.environment_load_succeeded
+	assert_true(result.get("ok", false))
+	assert_eq(result.get("kind", ""), "image")
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 1)
+	var surface := (setup["canvas_root"] as Control).get_child(0) as TextureRect
+	assert_not_null(surface)
+	assert_eq(surface.name, "EnvironmentImage")
+	assert_not_null(surface.texture)
+	var image_details: Dictionary = result.get("image_details", {})
+	assert_eq(image_details.get("path", ""), "res://assets/images/perfect-hue-may-14-2026.png")
+	assert_true(bool(image_details.get("surface_attached", false)))
+	assert_eq(image_details.get("path_kind", ""), "res")
+	var backend_result: Dictionary = image_details.get("backend_result", {})
+	assert_true(bool(backend_result.get("success", false)))
+	assert_false(backend_result.has("vendor"))
 	await get_tree().process_frame
 
 func test_video_load_uses_shared_video_player_stack() -> void:
