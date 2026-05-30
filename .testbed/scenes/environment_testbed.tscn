@@ -1,16 +1,17 @@
-[gd_scene load_steps=3 format=3 uid="uid://b1bmm4k2p2xil"]
+[gd_scene load_steps=4 format=3 uid="uid://b1bmm4k2p2xil"]
 
 [ext_resource type="Script" path="res://scripts/environment_testbed.gd" id="1_testbed"]
 [ext_resource type="Script" path="res://../src/AeroEnvironmentLoader.gd" id="2_manager"]
+
+[sub_resource type="Environment" id="Environment_bg"]
+background_mode = 1
+background_color = Color(0.04, 0.05, 0.08, 1)
 
 [node name="EnvironmentTestbed" type="Node"]
 script = ExtResource("1_testbed")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-
-[node name="Environment" type="Environment" parent="WorldEnvironment"]
-background_mode = 1
-background_color = Color(0.04, 0.05, 0.08, 1)
+environment = SubResource("Environment_bg")
 
 [node name="WorldRoot" type="Node3D" parent="."]
 
