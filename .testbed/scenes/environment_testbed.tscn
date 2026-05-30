@@ -69,10 +69,6 @@ size_flags_vertical = 3
 [node name="Title" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 text = "AeroBeat Workout Package Testbed"
 
-[node name="Hint" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-autowrap_mode = 3
-text = "Hidden workout-package proving surface for image, video, GLB, and gaussian-splat environments. Load a package-root workout.yaml from res:// or an arbitrary absolute filesystem path, then use the generated set buttons to route loads through the repo-level environment loader abstractions."
-
 [node name="CurrentWorkoutLabel" type="Label" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 unique_name_in_owner = true
 text = "Current workout: (none)"
@@ -82,13 +78,6 @@ autowrap_mode = 3
 unique_name_in_owner = true
 text = "Current asset: (none)"
 autowrap_mode = 3
-
-[node name="DisplayModeOption" type="OptionButton" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
-unique_name_in_owner = true
-item_count = 2
-selected = 0
-popup/item_0/text = "cover"
-popup/item_1/text = "contain"
 
 [node name="WorkoutYamlEdit" type="LineEdit" parent="CanvasLayer/Ui/Panel/Margin/VBox"]
 unique_name_in_owner = true

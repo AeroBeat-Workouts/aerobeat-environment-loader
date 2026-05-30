@@ -8,7 +8,6 @@ const FIXTURE_WORKOUT_YAML_PATH := "res://fixtures/workout_yaml_valid_all_kinds/
 @onready var workout_yaml_edit: LineEdit = %WorkoutYamlEdit
 @onready var current_workout_label: Label = %CurrentWorkoutLabel
 @onready var current_path_label: Label = %CurrentPathLabel
-@onready var display_mode_option: OptionButton = %DisplayModeOption
 @onready var unload_workout_button: Button = %UnloadWorkoutButton
 @onready var set_buttons_container: VBoxContainer = %SetButtonsContainer
 @onready var config_path_edit: LineEdit = %ConfigPathEdit
@@ -17,7 +16,6 @@ const FIXTURE_WORKOUT_YAML_PATH := "res://fixtures/workout_yaml_valid_all_kinds/
 var _loaded_workout: Dictionary = {}
 
 func _ready() -> void:
-	display_mode_option.select(0)
 	environment_loader.canvas_root_path = NodePath("../CanvasLayer/CanvasRoot")
 	environment_loader.world_root_path = NodePath("../WorldRoot")
 	environment_loader.environment_load_started.connect(_on_environment_load_started)
@@ -27,10 +25,6 @@ func _ready() -> void:
 	environment_loader.environment_cleared.connect(_on_environment_cleared)
 	workout_yaml_edit.text = _default_workout_entry_path()
 	workout_yaml_edit.placeholder_text = "Absolute package dir or workout.yaml path"
-	_append_status("Workout package testbed ready.")
-	_append_status("Load Workout reads a package-root workout.yaml from res:// or an arbitrary absolute path.")
-	_append_status("Committed stack fixture: %s" % ProjectSettings.globalize_path(FIXTURE_WORKOUT_YAML_PATH))
-	_append_status("Device routing uses AeroDeviceDetection plus the loader-owned GPU blacklist policy asset.")
 	_refresh_workout_ui()
 
 func _default_workout_entry_path() -> String:
@@ -40,7 +34,7 @@ func _default_workout_entry_path() -> String:
 	return FIXTURE_WORKOUT_YAML_PATH
 
 func _selected_display_mode() -> String:
-	return "contain" if display_mode_option.selected == 1 else "cover"
+	return "cover"
 
 func _current_workout_path() -> String:
 	return String(_loaded_workout.get("workout_path", workout_yaml_edit.text)).strip_edges()
