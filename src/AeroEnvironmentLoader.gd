@@ -810,16 +810,17 @@ func _ensure_gltf_tool() -> RefCounted:
 func _unload_video_player_manager(video_manager: Node, request: Dictionary = {}, stage: String = VIDEO_ERROR_STAGE_UNLOAD, resource_path: String = "") -> void:
 	if video_manager == null or not is_instance_valid(video_manager):
 		return
+	var unload_error := _get_video_manager_error(video_manager)
 	if video_manager.has_method("unload"):
 		video_manager.unload()
-		return
-	var unload_error := _get_video_manager_error(video_manager)
-	var state: Dictionary = _get_video_manager_state(video_manager)
-	if bool(state.get("surface_attached", false)):
-		if bool(state.get("media_loaded", not Dictionary(state.get("source", {})).is_empty())) and video_manager.has_method("stop"):
+	else:
+		var pre_unload_state: Dictionary = _get_video_manager_state(video_manager)
+		if bool(pre_unload_state.get("media_loaded", not Dictionary(pre_unload_state.get("source", {})).is_empty())) and video_manager.has_method("stop"):
 			video_manager.stop()
-		if video_manager.has_method("detach_surface"):
-			video_manager.detach_surface()
+		unload_error = _get_video_manager_error(video_manager)
+	var post_unload_state: Dictionary = _get_video_manager_state(video_manager)
+	if bool(post_unload_state.get("surface_attached", false)) and video_manager.has_method("detach_surface"):
+		video_manager.detach_surface()
 	if not request.is_empty() and unload_error.is_empty() and not _get_video_manager_error(video_manager).is_empty():
 		_emit_video_failure(request, resource_path, stage, video_manager, "Video teardown could not be completed.", ERROR_LOADER_FAILED, true)
 

@@ -910,6 +910,73 @@ func test_glb_outside_project_loads_through_shared_gltf_stack() -> void:
 	assert_false(Dictionary(gltf_details.get("vendor", {})).has("document"))
 	await get_tree().process_frame
 
+func test_switching_from_video_to_glb_detaches_previous_video_surface() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "video-before-glb",
+		"kind": "video",
+		"asset_path": "res://assets/videos/calm_blue_sea_1.ogv",
+		"display_mode": "cover",
+	})
+	await manager.environment_load_succeeded
+	var video_manager = manager._video_player_manager
+	assert_not_null(video_manager)
+	var video_surface := (setup["canvas_root"] as Control).get_child(0)
+	assert_not_null(video_surface)
+	manager.load_environment({
+		"request_id": "glb-after-video",
+		"kind": "glb",
+		"asset_path": "res://assets/models/alien-planet.glb",
+	})
+	await manager.environment_load_succeeded
+	await get_tree().process_frame
+	var state: Dictionary = video_manager.get_state()
+	assert_eq(state.get("state", ""), "idle")
+	assert_false(bool(state.get("surface_attached", true)))
+	assert_false(bool(state.get("media_loaded", true)))
+	assert_false(is_instance_valid(video_surface))
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 0)
+	assert_eq((setup["world_root"] as Node3D).get_child_count(), 1)
+
+func test_workout_package_repeat_switch_sequence_returns_cleanly_to_video() -> void:
+	var setup := _make_manager()
+	var manager = setup["manager"]
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var workout_path := String(package_copy.get("workout_path", ""))
+	var set_order := [
+		"ab-set-image-demo-round",
+		"ab-set-video-demo-round",
+		"ab-set-glb-demo-round",
+		"ab-set-splat-demo-round",
+		"ab-set-image-demo-round",
+		"ab-set-video-demo-round",
+	]
+	var expected_kinds := {
+		"ab-set-image-demo-round": "image",
+		"ab-set-video-demo-round": "video",
+		"ab-set-glb-demo-round": "glb",
+		"ab-set-splat-demo-round": "splat",
+	}
+	for index in range(set_order.size()):
+		var set_id := String(set_order[index])
+		manager.load_environment_from_workout_set(workout_path, set_id, {
+			"request_id": "repeat-switch-%d-%s" % [index, set_id],
+			"display_mode": "cover",
+		})
+		var result: Dictionary = await manager.environment_load_succeeded
+		assert_true(result.get("ok", false))
+		assert_eq(result.get("kind", ""), expected_kinds.get(set_id, ""))
+		await get_tree().process_frame
+	var video_manager = manager._video_player_manager
+	assert_not_null(video_manager)
+	var final_state: Dictionary = video_manager.get_state()
+	assert_eq(final_state.get("state", ""), "playing")
+	assert_true(bool(final_state.get("surface_attached", false)))
+	assert_true(bool(final_state.get("media_loaded", false)))
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 1)
+	assert_eq((setup["world_root"] as Node3D).get_child_count(), 0)
+
 func test_clear_environment_unloads_video_manager_state() -> void:
 	var setup := _make_manager()
 	var manager = setup["manager"]
