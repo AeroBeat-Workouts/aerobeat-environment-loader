@@ -104,8 +104,8 @@ func _build_request_from_set_descriptor(package_result: Dictionary, set_descript
 		"request_id": String(context.get("request_id", "")).strip_edges(),
 		"kind": String(preferred_candidate.get("kind", "")).strip_edges(),
 		"asset_path": String(preferred_candidate.get("asset_path", "")).strip_edges(),
-		"config_path": String(context.get("config_path", "")).strip_edges(),
-		"display_mode": String(context.get("display_mode", "cover")).strip_edges(),
+		"config_path": String(preferred_candidate.get("config_path", context.get("config_path", ""))).strip_edges(),
+		"fit_mode": String(context.get("fit_mode", "cover")).strip_edges(),
 		"context": context.duplicate(true),
 		"metadata": metadata,
 	}
@@ -197,6 +197,8 @@ func _build_environment_candidate(package_dir: String, environment_record: Dicti
 	if resource_path.is_empty():
 		return _error("invalid_environment_record", "Environment record is missing resourcePath.", false)
 	var asset_path := package_dir.path_join(resource_path).simplify_path()
+	var config_path := String(environment_record.get("configPath", "")).strip_edges()
+	var resolved_config_path := package_dir.path_join(config_path).simplify_path() if not config_path.is_empty() else ""
 
 	return {
 		"ok": true,
@@ -208,6 +210,8 @@ func _build_environment_candidate(package_dir: String, environment_record: Dicti
 			"kind": kind,
 			"resource_path": resource_path,
 			"asset_path": asset_path,
+			"config_path": resolved_config_path,
+			"configPath": resolved_config_path,
 		},
 	}
 

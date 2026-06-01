@@ -123,8 +123,9 @@ const KIND_IMAGE := AERO_ENVIRONMENT_CONSTANTS.KIND_IMAGE
 const KIND_VIDEO := AERO_ENVIRONMENT_CONSTANTS.KIND_VIDEO
 const KIND_GLB := AERO_ENVIRONMENT_CONSTANTS.KIND_GLB
 const KIND_SPLAT := AERO_ENVIRONMENT_CONSTANTS.KIND_SPLAT
-const DISPLAY_MODE_COVER := AERO_ENVIRONMENT_CONSTANTS.DISPLAY_MODE_COVER
-const DISPLAY_MODE_CONTAIN := AERO_ENVIRONMENT_CONSTANTS.DISPLAY_MODE_CONTAIN
+const FIT_MODE_STRETCH := "stretch"
+const FIT_MODE_CONTAIN := "contain"
+const FIT_MODE_COVER := "cover"
 const ERROR_FILE_MISSING := AERO_ENVIRONMENT_CONSTANTS.ERROR_FILE_MISSING
 const ERROR_UNSUPPORTED_FORMAT := AERO_ENVIRONMENT_CONSTANTS.ERROR_UNSUPPORTED_FORMAT
 const ERROR_INVALID_REQUEST := AERO_ENVIRONMENT_CONSTANTS.ERROR_INVALID_REQUEST
@@ -193,7 +194,7 @@ func _load_environment_from_workout_bridge_result(yaml_path: String, context: Di
 			"kind": "",
 			"asset_path": yaml_path.strip_edges(),
 			"config_path": String(context.get("config_path", "")).strip_edges(),
-			"display_mode": String(context.get("display_mode", DISPLAY_MODE_COVER)).strip_edges(),
+			"fit_mode": String(context.get("fit_mode", FIT_MODE_COVER)).strip_edges(),
 			"context": context.duplicate(true),
 			"metadata": Dictionary(context.get("metadata", {})) if context.get("metadata", {}) is Dictionary else {},
 		}
@@ -429,6 +430,9 @@ func _ensure_policy_parser() -> RefCounted:
 		_policy_parser = SIMPLE_YAML_PARSER_SCRIPT.new()
 	return _policy_parser
 
+func _ensure_yaml_parser() -> RefCounted:
+	return _ensure_policy_parser()
+
 func _resolved_unsupported_device_policy_path() -> String:
 	if not unsupported_device_policy_path.strip_edges().is_empty():
 		return unsupported_device_policy_path.strip_edges()
@@ -516,14 +520,22 @@ func _load_image(request: Dictionary) -> void:
 		})
 		return
 	_emit_progress(request, STATUS_DECODING, 0.45, "Decoding image environment...")
-	var maintain_aspect_ratio := String(request.get("display_mode", DISPLAY_MODE_COVER)) != DISPLAY_MODE_CONTAIN
-	var texture_rect: TextureRect = image_loader.create_preview_surface("environment", maintain_aspect_ratio)
+	var config_result := _resolve_environment_config(request)
+	if not config_result.get("ok", false):
+		_emit_failure(request, ERROR_INVALID_CONFIG, String(config_result.get("message", "Image config could not be loaded.")), true, {
+			"subsystem": KIND_IMAGE,
+			"stage": STATUS_APPLYING_CONFIG,
+			"config_path": String(request.get("config_path", "")),
+		})
+		return
+	var fit_mode := _effective_fit_mode_for_request(request, config_result)
+	var texture_rect: TextureRect = image_loader.create_preview_surface("environment", fit_mode)
 	texture_rect.name = "EnvironmentImage"
 	_canvas_root.add_child(texture_rect)
 	var image_result: Dictionary = image_loader.load_image({
 		"path": requested_asset_path,
 		"slot": "environment",
-		"maintain_aspect_ratio": maintain_aspect_ratio,
+		"fit_mode": fit_mode,
 		"metadata": {
 			"environment_request_id": String(request.get("request_id", "")),
 			"environment_kind": KIND_IMAGE,
@@ -554,12 +566,14 @@ func _load_image(request: Dictionary) -> void:
 	var image_details := _dictionary_or_empty(image_result.get("detail", {}))
 	_finalize_success(request, texture_rect, {
 		"format": OFFICIAL_FORMATS[KIND_IMAGE],
-		"config_path": "",
-		"config_applied": false,
+		"config_path": String(config_result.get("config_path", "")),
+		"config_applied": bool(config_result.get("config_applied", false)),
+		"config": Dictionary(config_result.get("config", {})).duplicate(true),
 		"image_details": {
 			"path": String(image_details.get("path", requested_asset_path)),
 			"slot": String(image_details.get("slot", "environment")),
-			"maintain_aspect_ratio": bool(image_details.get("maintain_aspect_ratio", maintain_aspect_ratio)),
+			"fit_mode": String(image_details.get("fit_mode", fit_mode)),
+			"maintain_aspect_ratio": bool(image_details.get("maintain_aspect_ratio", fit_mode != FIT_MODE_STRETCH)),
 			"width": int(image_details.get("width", 0)),
 			"height": int(image_details.get("height", 0)),
 			"path_kind": String(image_details.get("path_kind", "")),
@@ -588,6 +602,15 @@ func _load_video(request: Dictionary) -> void:
 	var surface := _build_video_surface()
 	_canvas_root.add_child(surface)
 
+	var config_result := _resolve_environment_config(request)
+	if not config_result.get("ok", false):
+		surface.queue_free()
+		_emit_failure(request, ERROR_INVALID_CONFIG, String(config_result.get("message", "Video config could not be loaded.")), true, {
+			"subsystem": KIND_VIDEO,
+			"stage": STATUS_APPLYING_CONFIG,
+			"config_path": String(request.get("config_path", "")),
+		})
+		return
 	var video_manager := _ensure_video_player_manager()
 	video_manager.attach_surface(surface)
 	var attach_error := _get_video_manager_error(video_manager)
@@ -597,10 +620,12 @@ func _load_video(request: Dictionary) -> void:
 		surface.queue_free()
 		return
 
+	var fit_mode := _effective_fit_mode_for_request(request, config_result)
 	video_manager.load({
 		"path": load_path,
 		"kind": "file",
 		"autoplay": false,
+		"fit_mode": fit_mode,
 		"metadata": {
 			"environment_request_id": String(request.get("request_id", "")),
 			"environment_kind": KIND_VIDEO,
@@ -628,8 +653,9 @@ func _load_video(request: Dictionary) -> void:
 	var media_info: Dictionary = _sanitize_video_media_info(video_manager.get_media_info())
 	_finalize_success(request, surface, {
 		"format": OFFICIAL_FORMATS[KIND_VIDEO],
-		"config_path": "",
-		"config_applied": false,
+		"config_path": String(config_result.get("config_path", "")),
+		"config_applied": bool(config_result.get("config_applied", false)),
+		"config": Dictionary(config_result.get("config", {})).duplicate(true),
 		"playback_state": video_state,
 		"media_info": media_info,
 	})
@@ -1076,13 +1102,33 @@ func _invalid_request(request: Dictionary, message: String) -> Dictionary:
 		"recoverable": true,
 	}
 
-func _normalize_display_mode(display_mode: String) -> String:
-	return AERO_ENVIRONMENT_CONSTANTS.normalize_display_mode(display_mode)
+func _normalize_fit_mode(fit_mode: String) -> String:
+	return AERO_ENVIRONMENT_CONSTANTS.normalize_fit_mode(fit_mode)
 
 func _preferred_config_path(asset_path: String) -> String:
 	return AERO_ENVIRONMENT_CONSTANTS.preferred_config_path(asset_path)
 
-func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
+func _load_environment_config(config_path: String) -> Dictionary:
+	var absolute_path := _to_absolute_path(config_path)
+	if absolute_path.is_empty() or not FileAccess.file_exists(absolute_path):
+		return {
+			"ok": false,
+			"message": "Environment config file does not exist: %s" % config_path,
+		}
+	var parsed: Variant = _ensure_yaml_parser().parse_file(absolute_path)
+	if not (parsed is Dictionary):
+		return {
+			"ok": false,
+			"message": "Environment config is not a YAML object: %s" % config_path,
+		}
+	var config: Dictionary = Dictionary(parsed).duplicate(true)
+	return {
+		"ok": true,
+		"config": config,
+		"config_model": AERO_ENVIRONMENT_CONFIG_HELPER.parse_config_dict(config).get("config", null),
+	}
+
+func _resolve_environment_config(request: Dictionary) -> Dictionary:
 	var config_path := String(request.get("config_path", "")).strip_edges()
 	if config_path.is_empty():
 		return {
@@ -1090,6 +1136,7 @@ func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
 			"config_applied": false,
 			"config_path": "",
 			"config": {},
+			"config_model": null,
 		}
 	var absolute_path := _to_absolute_path(config_path)
 	if absolute_path.is_empty() or not FileAccess.file_exists(absolute_path):
@@ -1098,24 +1145,37 @@ func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
 			"config_applied": false,
 			"config_path": config_path,
 			"config": {},
+			"config_model": null,
 		}
-	_emit_progress(request, STATUS_APPLYING_CONFIG, 0.82, "Applying environment config...")
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(absolute_path))
-	if not (parsed is Dictionary):
-		return {
-			"ok": false,
-			"message": "Environment config is not a JSON object: %s" % config_path,
-		}
-	var config: Dictionary = parsed
-	var apply_result: Dictionary = AERO_ENVIRONMENT_CONFIG_HELPER.apply_config_dict(config, target)
-	if not apply_result.get("ok", false):
-		return apply_result
+	var load_result := _load_environment_config(config_path)
+	if not load_result.get("ok", false):
+		return load_result
 	return {
 		"ok": true,
 		"config_applied": true,
 		"config_path": config_path,
-		"config": config,
+		"config": Dictionary(load_result.get("config", {})).duplicate(true),
+		"config_model": load_result.get("config_model", null),
 	}
+
+func _effective_fit_mode_for_request(request: Dictionary, config_result: Dictionary = {}) -> String:
+	var config_model: Variant = config_result.get("config_model", null)
+	if config_model != null:
+		return _normalize_fit_mode(String(config_model.media.fit_mode))
+	return _normalize_fit_mode(String(request.get("fit_mode", FIT_MODE_COVER)))
+
+func _apply_config_if_present(request: Dictionary, target: Node) -> Dictionary:
+	var config_result := _resolve_environment_config(request)
+	if not config_result.get("ok", false):
+		return config_result
+	if not bool(config_result.get("config_applied", false)):
+		return config_result
+	_emit_progress(request, STATUS_APPLYING_CONFIG, 0.82, "Applying environment config...")
+	var config: Dictionary = Dictionary(config_result.get("config", {})).duplicate(true)
+	var apply_result: Dictionary = AERO_ENVIRONMENT_CONFIG_HELPER.apply_config_dict(config, target)
+	if not apply_result.get("ok", false):
+		return apply_result
+	return config_result
 
 func _apply_environment_transform(config: Dictionary, target: Node) -> Dictionary:
 	return AERO_ENVIRONMENT_CONFIG_HELPER.apply_config_dict(config, target)
@@ -1177,7 +1237,7 @@ func _request_stub(request: Dictionary) -> Dictionary:
 		"kind": String(request.get("kind", "")).strip_edges().to_lower(),
 		"asset_path": String(request.get("asset_path", "")).strip_edges(),
 		"config_path": String(request.get("config_path", "")).strip_edges(),
-		"display_mode": _normalize_display_mode(String(request.get("display_mode", DISPLAY_MODE_COVER)).strip_edges()),
+		"fit_mode": _normalize_fit_mode(String(request.get("fit_mode", FIT_MODE_COVER)).strip_edges()),
 		"context": request.get("context", {}) if request.get("context", {}) is Dictionary else {},
 		"metadata": Dictionary(request.get("metadata", {})) if request.get("metadata", {}) is Dictionary else {},
 	}

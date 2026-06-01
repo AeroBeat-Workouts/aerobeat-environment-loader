@@ -1,0 +1,13 @@
+transform:
+  position:
+    - 0.0
+    - -1.0
+    - -3.5
+  rotation_degrees:
+    - 0.0
+    - 0.0
+    - 0.0
+  scale:
+    - 1.0
+    - 1.0
+    - 1.0

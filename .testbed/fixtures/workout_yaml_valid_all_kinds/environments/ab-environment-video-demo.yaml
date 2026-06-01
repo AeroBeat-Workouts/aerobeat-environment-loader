@@ -5,3 +5,4 @@ environmentId: ab-environment-video-demo
 environmentName: Video Demo Environment
 type: video_background
 resourcePath: ../../assets/videos/calm_blue_sea_1.ogv
+configPath: ../../assets/videos/calm_blue_sea_1.config.yaml

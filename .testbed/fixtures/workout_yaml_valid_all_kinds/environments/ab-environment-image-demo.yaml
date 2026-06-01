@@ -5,3 +5,4 @@ environmentId: ab-environment-image-demo
 environmentName: Image Demo Environment
 type: image_background
 resourcePath: ../../assets/images/perfect-hue-may-14-2026.png
+configPath: ../../assets/images/perfect-hue-may-14-2026.config.yaml

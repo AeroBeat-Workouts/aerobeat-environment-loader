@@ -5,3 +5,4 @@ environmentId: ab-environment-splat-demo
 environmentName: Gaussian Splat Demo Environment
 type: splat
 resourcePath: ../../assets/splats/CountrySide farm.compressed.ply
+configPath: ../../assets/splats/CountrySide farm.config.yaml
