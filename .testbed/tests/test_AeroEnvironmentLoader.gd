@@ -77,6 +77,29 @@ func _make_manager() -> Dictionary:
 		"manager": manager,
 	}
 
+func _make_manager_with_deferred_root_assignment() -> Dictionary:
+	var root := Node.new()
+	add_child_autofree(root)
+	var canvas_layer := CanvasLayer.new()
+	canvas_layer.name = "CanvasLayer"
+	root.add_child(canvas_layer)
+	var canvas_root := Control.new()
+	canvas_root.name = "CanvasRoot"
+	canvas_layer.add_child(canvas_root)
+	var world_root := Node3D.new()
+	world_root.name = "WorldRoot"
+	root.add_child(world_root)
+	var manager = AERO_ENVIRONMENT_LOADER_SCRIPT.new()
+	root.add_child(manager)
+	manager.canvas_root_path = NodePath("../CanvasLayer/CanvasRoot")
+	manager.world_root_path = NodePath("../WorldRoot")
+	return {
+		"root": root,
+		"canvas_root": canvas_root,
+		"world_root": world_root,
+		"manager": manager,
+	}
+
 func _copy_fixture_to_temp(source_path: String, extension: String) -> String:
 	var source_absolute := ProjectSettings.globalize_path(source_path)
 	var read_handle := FileAccess.open(source_absolute, FileAccess.READ)
@@ -791,6 +814,35 @@ func test_external_workout_package_copy_materializes_local_media_references() ->
 	assert_true(glb_environment_text.contains("configPath: media/environments/alien-planet.config.yaml"))
 	assert_true(splat_environment_text.contains("resourcePath: media/environments/countryside-farm.compressed.ply"))
 	assert_true(splat_environment_text.contains("configPath: media/environments/countryside-farm.config.yaml"))
+
+func test_load_environment_rebinds_to_visible_roots_when_paths_are_assigned_after_ready() -> void:
+	var setup := _make_manager_with_deferred_root_assignment()
+	var manager = setup["manager"]
+	manager.load_environment({
+		"request_id": "late-root-image-test",
+		"kind": "image",
+		"asset_path": "res://assets/images/perfect-hue-may-14-2026.png",
+		"fit_mode": "cover",
+	})
+	var image_result: Dictionary = await manager.environment_load_succeeded
+	assert_true(image_result.get("ok", false))
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 1)
+	assert_eq(manager.get_node_or_null("EnvironmentCanvasRoot"), null)
+	assert_eq(manager.get_node_or_null("EnvironmentWorldRoot"), null)
+
+	manager.load_environment({
+		"request_id": "late-root-glb-test",
+		"kind": "glb",
+		"asset_path": "res://assets/models/alien-planet.glb",
+	})
+	var glb_result: Dictionary = await manager.environment_load_succeeded
+	assert_true(glb_result.get("ok", false))
+	await get_tree().process_frame
+	assert_eq((setup["canvas_root"] as Control).get_child_count(), 0)
+	assert_eq((setup["world_root"] as Node3D).get_child_count(), 1)
+	assert_eq(manager.get_node_or_null("EnvironmentCanvasRoot"), null)
+	assert_eq(manager.get_node_or_null("EnvironmentWorldRoot"), null)
+	await get_tree().process_frame
 
 func test_load_environment_applies_glb_sidecar_config() -> void:
 	var setup := _make_manager()

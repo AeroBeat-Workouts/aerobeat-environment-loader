@@ -180,7 +180,7 @@ var _device_detection_service: Node
 
 func _ready() -> void:
 	_bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
-	_ensure_roots()
+	call_deferred("_ensure_roots")
 
 func _ensure_bridge() -> RefCounted:
 	if _bridge == null:
@@ -218,6 +218,7 @@ func _load_environment_from_workout_bridge_result(yaml_path: String, context: Di
 	load_environment(Dictionary(routed_request_result.get("request", {})))
 
 func load_environment(request: Dictionary) -> void:
+	_ensure_roots()
 	if not is_active:
 		_emit_failure(_request_stub(request), ERROR_LOADER_FAILED, "AeroEnvironmentLoader is inactive.", true)
 		return
