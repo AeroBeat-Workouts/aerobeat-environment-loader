@@ -11,6 +11,13 @@ const CORE_ERROR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/co
 const CORE_REQUEST_VALIDATOR_SCRIPT = preload("res://addons/aerobeat-environment-core/src/contracts/validators/environment_request_validator.gd")
 const FIXTURE_PACKAGE_DIR_PATH := "res://fixtures/workout_yaml_valid_all_kinds"
 const FIXTURE_WORKOUT_YAML_PATH := "%s/workout.yaml" % FIXTURE_PACKAGE_DIR_PATH
+const COMMITTED_SHARED_FIXTURE_DEPENDENCIES := [
+	"res://assets/images/perfect-hue-may-14-2026.png",
+	"res://assets/videos/calm_blue_sea_1.ogv",
+	"res://assets/models/alien-planet.glb",
+	"res://assets/models/alien-planet_0.jpg",
+	"res://assets/splats/CountrySide farm.compressed.ply",
+]
 
 func _supported_device_simulation() -> Dictionary:
 	return {
@@ -735,6 +742,10 @@ func test_absolute_workout_package_can_switch_media_type_per_set() -> void:
 		assert_eq(request.get("fit_mode", ""), "contain")
 		assert_eq(metadata.get("set_id", ""), String(set_id))
 		assert_eq(metadata.get("workout_path", ""), workout_path)
+
+func test_committed_shared_fixture_dependencies_exist() -> void:
+	for dependency_path in COMMITTED_SHARED_FIXTURE_DEPENDENCIES:
+		assert_true(FileAccess.file_exists(String(dependency_path)), "Missing committed shared fixture dependency: %s" % String(dependency_path))
 
 func test_committed_workout_fixture_covers_all_supported_environment_kinds() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
