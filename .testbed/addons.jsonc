@@ -1,63 +1,56 @@
 {
   "$schema": "https://chickensoft.games/schemas/addons.schema.json",
   "addons": {
-    // Install the repo local folder
     "aerobeat-environment-loader": {
-        "url": "..",
-        "source": "symlink",
-        "subfolder": "/"
+      "url": "..",
+      "source": "symlink",
+      "subfolder": "/"
     },
-    // The loader consumes the shared environment contract package.
-    // `main` is intentional until aerobeat-environment-core starts tagging releases.
     "aerobeat-environment-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-environment-core.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-environment-core",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Video playback now composes the shared video stack instead of owning a direct one-off path.
     "aerobeat-tool-core": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-core.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-core",
+      "subfolder": "/",
+      "source": "symlink"
     },
     "aerobeat-tool-video-player": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-video-player.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-video-player",
+      "subfolder": "/",
+      "source": "symlink"
     },
     "aerobeat-vendor-godot-video": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-video.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-vendor-godot-video",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // Image fulfillment now composes the shared image-loader facade plus its current vendor backend.
     "aerobeat-tool-image-loader": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-image-loader.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-image-loader",
+      "subfolder": "/",
+      "source": "symlink"
     },
     "aerobeat-vendor-godot-image": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-image.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-vendor-godot-image",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // GLB loading now composes the shared GLTF tool facade plus its current vendor backend.
     "aerobeat-tool-gltf-loader": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-gltf-loader.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-gltf-loader",
+      "subfolder": "/",
+      "source": "symlink"
     },
     "aerobeat-tool-device-detection": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-tool-device-detection.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-tool-device-detection",
+      "subfolder": "/",
+      "source": "symlink"
     },
     "aerobeat-vendor-godot-gltf": {
-      "url": "git@github.com:AeroBeat-Workouts/aerobeat-vendor-godot-gltf.git",
-      "checkout": "main",
-      "subfolder": "/"
+      "url": "../../aerobeat-vendor-godot-gltf",
+      "subfolder": "/",
+      "source": "symlink"
     },
-    // GUT drives the repo-local test suite inside the hidden testbed/workbench.
     "gut": {
       "url": "git@github.com:bitwes/Gut.git",
       "checkout": "main",
