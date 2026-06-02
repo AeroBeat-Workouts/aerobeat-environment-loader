@@ -1,7 +1,7 @@
 # AeroBeat Workout Package Testbed and Media Loader Stack
 
 **Date:** 2026-05-27  
-**Status:** In Progress  
+**Status:** Stale  
 **Last Updated:** 2026-05-27 17:26 EDT  
 **Blocked Reason:** None  
 **Agent:** `pico`
