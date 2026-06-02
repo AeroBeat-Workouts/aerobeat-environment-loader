@@ -92,7 +92,7 @@ godot --headless --path .testbed --import
 From the repo root:
 
 ```bash
-godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
+godot --headless --path .testbed --script addons/aerobeat-vendor-godot-unit-test/gut_cmdln.gd \
   -gdir=res://tests \
   -ginclude_subdirs \
   -gexit
@@ -118,7 +118,7 @@ godot --headless --path .testbed --script addons/gut/gut_cmdln.gd \
 ## Validation notes
 
 - `.testbed/addons.jsonc` is the committed dev/test dependency contract.
-- The canonical manifest for this repo is `aerobeat-environment-core` + the shared image stack + the shared GLTF stack + the shared video stack + `gut`.
+- The canonical manifest for this repo is `aerobeat-environment-core` + the shared image stack + the shared GLTF stack + the shared video stack + `aerobeat-vendor-godot-unit-test`.
 - `.testbed/project.godot` autoloads `AeroImageLoader` and `AeroDeviceDetection` so the hidden workbench proves the public image-loader/device-routing seams instead of direct vendor wiring.
 - Repo-local tests validate both the current loader behavior and that the loader stays coherent with
   the core-owned contract subtree while routing image loads through `AeroImageLoader`, GLB loads through `AeroGLTFLoader`, and video loads through

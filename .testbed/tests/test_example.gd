@@ -16,7 +16,7 @@ const EXPECTED_MANIFEST_ADDON_KEYS := [
 	"aerobeat-tool-gltf-loader",
 	"aerobeat-tool-device-detection",
 	"aerobeat-vendor-godot-gltf",
-	"gut",
+	"aerobeat-vendor-godot-unit-test",
 ]
 
 func _read_repo_file(relative_path: String) -> String:
@@ -92,7 +92,7 @@ func test_addons_manifest_keeps_expected_dependencies_only() -> void:
 	assert_true(manifest_text.contains('"aerobeat-tool-gltf-loader"'), "addons manifest should pin aerobeat-tool-gltf-loader for the shared GLTF facade")
 	assert_true(manifest_text.contains('"aerobeat-tool-device-detection"'), "addons manifest should pin aerobeat-tool-device-detection for runtime hardware routing")
 	assert_true(manifest_text.contains('"aerobeat-vendor-godot-gltf"'), "addons manifest should pin aerobeat-vendor-godot-gltf for the GLTF runtime backend")
-	assert_true(manifest_text.contains('"gut"'), "addons manifest should pin gut for repo-local tests")
+	assert_true(manifest_text.contains('"aerobeat-vendor-godot-unit-test"'), "addons manifest should pin the vendor unit-test addon for repo-local tests")
 	assert_false(manifest_text.contains('"aerobeat-core"'), "addons manifest should not reintroduce stale aerobeat-core drift")
 	var expected_keys := EXPECTED_MANIFEST_ADDON_KEYS.duplicate()
 	expected_keys.sort()
