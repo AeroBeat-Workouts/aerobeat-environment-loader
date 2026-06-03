@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.6", "Forward Plus")
 
 AeroDeviceDetection="*res://addons/aerobeat-tool-device-detection/src/AeroDeviceDetection.gd"
 AeroImageLoader="*res://addons/aerobeat-tool-image-loader/src/AeroImageLoader.gd"
+AeroHeadlessManager="*res://addons/aerobeat-tool-headless-manager/src/AeroHeadlessManager.gd"
 
 [editor_plugins]
 
