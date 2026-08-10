@@ -370,6 +370,8 @@ func _ensure_device_detection_service() -> Node:
 		if singleton != null:
 			_device_detection_service = singleton
 			return _device_detection_service
+	if not ResourceLoader.exists(AERO_DEVICE_DETECTION_SCRIPT_PATH):
+		return null
 	var detector_script: Variant = load(AERO_DEVICE_DETECTION_SCRIPT_PATH)
 	if detector_script == null:
 		return null
@@ -738,7 +740,7 @@ func _load_splat(request: Dictionary) -> void:
 	var placeholder := Node3D.new()
 	placeholder.name = "EnvironmentSplat"
 	placeholder.set_meta("asset_path", absolute_path)
-	placeholder.set_meta("point_count_estimate", max(file_size / 60, 1))
+	placeholder.set_meta("point_count_estimate", max(floori(float(file_size) / 60.0), 1))
 	var marker := Marker3D.new()
 	marker.name = "Anchor"
 	placeholder.add_child(marker)

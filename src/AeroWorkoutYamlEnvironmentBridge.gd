@@ -196,9 +196,9 @@ func _build_environment_candidate(package_dir: String, environment_record: Dicti
 	var resource_path := String(environment_record.get("resourcePath", "")).strip_edges()
 	if resource_path.is_empty():
 		return _error("invalid_environment_record", "Environment record is missing resourcePath.", false)
-	var asset_path := package_dir.path_join(resource_path).simplify_path()
+	var asset_path := _resolve_environment_relative_path(package_dir, environment_record_path, resource_path)
 	var config_path := String(environment_record.get("configPath", "")).strip_edges()
-	var resolved_config_path := package_dir.path_join(config_path).simplify_path() if not config_path.is_empty() else ""
+	var resolved_config_path := _resolve_environment_relative_path(package_dir, environment_record_path, config_path) if not config_path.is_empty() else ""
 
 	return {
 		"ok": true,
@@ -214,6 +214,14 @@ func _build_environment_candidate(package_dir: String, environment_record: Dicti
 			"configPath": resolved_config_path,
 		},
 	}
+
+func _resolve_environment_relative_path(package_dir: String, environment_record_path: String, relative_path: String) -> String:
+	if relative_path.begins_with("res://") or relative_path.begins_with("user://") or relative_path.is_absolute_path():
+		return relative_path.simplify_path()
+	var descriptor_relative_path := environment_record_path.get_base_dir().path_join(relative_path).simplify_path()
+	if FileAccess.file_exists(descriptor_relative_path):
+		return descriptor_relative_path
+	return package_dir.path_join(relative_path).simplify_path()
 
 func _select_set_descriptor(package_result: Dictionary, set_reference: Variant) -> Dictionary:
 	var sets: Array = Array(package_result.get("sets", []))
@@ -232,7 +240,7 @@ func _select_set_descriptor(package_result: Dictionary, set_reference: Variant) 
 	var set_id := String(set_reference).strip_edges()
 	if set_id.is_empty():
 		return _error("missing_set_ref", "Workout set reference is empty.", false)
-	for set_descriptor_variant in sets:
+	for set_descriptor_variant: Variant in sets:
 		if not (set_descriptor_variant is Dictionary):
 			continue
 		var set_descriptor := Dictionary(set_descriptor_variant)

@@ -438,6 +438,41 @@ func test_workout_yaml_bridge_accepts_absolute_workout_yaml_path() -> void:
 	assert_eq(Dictionary(candidates.get("preferred", {})).get("environment_id", ""), "ab-environment-image-demo")
 	assert_eq(Dictionary(candidates.get("fallback", {})).get("environment_id", ""), "ab-environment-image-demo")
 
+func test_workout_yaml_bridge_prefers_descriptor_relative_environment_paths() -> void:
+	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
+	var package_copy := _copy_workout_fixture_package_to_temp()
+	var package_dir := String(package_copy.get("package_dir", ""))
+	var descriptor_media_dir := package_dir.path_join("environments/media")
+	assert_eq(DirAccess.make_dir_recursive_absolute(descriptor_media_dir), OK)
+	var descriptor_image_path := descriptor_media_dir.path_join("descriptor-demo.png")
+	var descriptor_config_path := descriptor_media_dir.path_join("descriptor-demo.config.yaml")
+	_copy_fixture_file(ProjectSettings.globalize_path("res://assets/images/perfect-hue-may-14-2026.png"), descriptor_image_path)
+	var descriptor_config_file := FileAccess.open(descriptor_config_path, FileAccess.WRITE)
+	assert_not_null(descriptor_config_file)
+	descriptor_config_file.store_string("media:\n  fit_mode: contain\n")
+	descriptor_config_file.close()
+	var environment_file := FileAccess.open(package_dir.path_join("environments/ab-environment-image-demo.yaml"), FileAccess.WRITE)
+	assert_not_null(environment_file)
+	environment_file.store_string("\n".join([
+		"schemaId: aerobeat.environment.v1",
+		"schemaVersion: 1",
+		"recordVersion: 1",
+		"environmentId: ab-environment-image-demo",
+		"environmentName: Image Demo Environment",
+		"type: image_background",
+		"resourcePath: media/descriptor-demo.png",
+		"configPath: media/descriptor-demo.config.yaml",
+	]))
+	environment_file.close()
+
+	var result := bridge.build_request_from_workout_yaml(String(package_copy.get("workout_path", "")), {
+		"request_id": "yaml-bridge-descriptor-relative",
+	})
+	assert_true(result.get("ok", false))
+	var request: Dictionary = result.get("request", {})
+	assert_eq(request.get("asset_path", ""), descriptor_image_path)
+	assert_eq(request.get("config_path", ""), descriptor_config_path)
+
 func test_workout_yaml_bridge_accepts_absolute_package_directory_path() -> void:
 	var bridge = WORKOUT_YAML_ENVIRONMENT_BRIDGE_SCRIPT.new()
 	var package_copy := _copy_workout_fixture_package_to_temp()
